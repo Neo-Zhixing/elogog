@@ -1,0 +1,4 @@
+(
+  title: "gog",
+  dimensions: Some((800, 600)),
+)
