@@ -1,7 +1,5 @@
-#![feature(const_generics)]
-#![feature(maybe_uninit_uninit_array)]
-#![feature(maybe_uninit_ref)]
 #![feature(leading_trailing_ones)]
+#![feature(alloc_layout_extra)]
 
 mod util;
 mod octree;
