@@ -1,8 +1,6 @@
-use std::fmt::{Formatter, Error};
-
 #[derive(Copy, Clone, Debug)]
 pub struct Voxel {
-    data: u16
+    pub data: u16
 }
 
 impl std::default::Default for Voxel {
@@ -11,4 +9,13 @@ impl std::default::Default for Voxel {
             data: 0,
         }
     }
+}
+
+impl PartialEq for Voxel {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+}
+
+impl Eq for Voxel {
 }
