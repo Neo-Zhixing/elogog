@@ -1,20 +1,18 @@
 use super::voxel::Voxel;
-use super::arena::{Arena, ArenaNodeIndice};
+use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
 
 // Can represent max 21 layers of structures
+// Always prepend index path with a 1
+// 0..63 bits: 21 index path, grouped by 3 bits
 #[derive(Copy, Clone)]
-pub struct IndexPath {
-    // Always prepend index path with a 1
-    // 0..63 bits: 21 index path, grouped by 3 bits
-    data: u64
-}
+pub struct IndexPath (std::num::NonZeroU64);
 
 impl std::fmt::Debug for IndexPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let mut current = self.clone();
-        while !current.empty() {
+        while !current.is_empty() {
             f.write_char((current.peek() + '0' as u8).into())?;
             current = current.pop();
             f.write_char('/')?;
@@ -24,33 +22,42 @@ impl std::fmt::Debug for IndexPath {
 }
 
 impl IndexPath {
+    fn empty() -> IndexPath {
+        unsafe {
+            IndexPath(std::num::NonZeroU64::new_unchecked(1))
+        }
+    }
     fn new(octant: u8) -> IndexPath {
-        IndexPath {
-            data: 1,
-        }.push(octant)
+        IndexPath::empty().push(octant)
     }
-    fn empty(&self) -> bool {
-        self.data == 1
+    fn is_empty(&self) -> bool {
+        self.0.get() == 1
     }
-    fn full(&self) -> bool {
+    fn is_full(&self) -> bool {
         // Check highest bit
-        (self.data >> 63) == 1
+        (self.0.get() >> 63) == 1
     }
     fn peek(&self) -> u8 {
-        assert!(!self.empty());
-        self.data as u8 & 0b111
+        assert!(!self.is_empty());
+        self.0.get() as u8 & 0b111
     }
     fn pop(&self) -> IndexPath {
-        assert!(!self.empty());
-        IndexPath {
-            data: self.data >> 3,
+        assert!(!self.is_empty());
+        unsafe {
+            IndexPath(std::num::NonZeroU64::new_unchecked(self.0.get() >> 3))
         }
     }
     fn push(&self, octant: u8) -> IndexPath {
         assert!(octant < 8);
-        assert!(!self.full(), "The index path is full");
-        IndexPath {
-            data: (self.data << 3) | (octant as u64)
+        assert!(!self.is_full(), "The index path is full");
+        unsafe {
+            IndexPath(std::num::NonZeroU64::new_unchecked((self.0.get() << 3) | (octant as u64)))
+        }
+    }
+    fn replace(&self, octant: u8) -> IndexPath {
+        assert!(octant < 8);
+        unsafe {
+            IndexPath(std::num::NonZeroU64::new_unchecked((self.0.get() & !0b111) | (octant as u64)))
         }
     }
 }
@@ -61,7 +68,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    fn new() -> Chunk {
+    pub(crate) fn new() -> Chunk {
         let mut arena = Arena::new();
         let root_node = arena.alloc(1).child(0);
         Chunk {
@@ -76,7 +83,7 @@ impl Chunk {
             // Strip the top most path element
             let dir = current.peek();
             current = current.pop();
-            if current.empty() { // If this is the final path ||
+            if current.is_empty() { // If this is the final path ||
                 // Set the leaf
                 // node.data[dir as usize] = voxel;
                 self.arena.get_node_mut(node_index).set_on_dir(dir, voxel);
@@ -102,7 +109,7 @@ impl Chunk {
             let dir = current.peek();
             current = current.pop();
             let node = self.arena.get_node(node_index);
-            if current.empty() { // If this is the final path ||
+            if current.is_empty() { // If this is the final path ||
                 // Get the leaf
                 return node.data[dir as usize];
             } else if let Some(child) = self.arena.get_node(node_index).child_on_dir(dir) {
@@ -117,11 +124,35 @@ impl Chunk {
 }
 
 
+struct ChunkIterator<'a> {
+    path: IndexPath,
+    chunk: &'a Chunk,
+}
+
+impl<'a> Iterator for ChunkIterator<'a>  {
+    type Item = &'a ArenaNode;
+
+    fn next(&mut self) -> Option<&'a ArenaNode> {
+        unimplemented!()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        unimplemented!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::octree::chunk::{Chunk, IndexPath};
     use crate::octree::voxel::Voxel;
+    use std::mem::size_of;
     use rand::Rng;
+
+    #[test]
+    fn test_index_path() {
+        assert_eq!(size_of::<IndexPath>(), size_of::<u64>());
+        assert_eq!(size_of::<Option<IndexPath>>(), size_of::<u64>());
+    }
 
     #[test]
     fn test_set_first_level() {

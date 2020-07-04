@@ -42,6 +42,8 @@ use amethyst::{
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
 use crate::octree::mesh::gen;
+use crate::octree::chunk::Chunk;
+
 struct GameState;
 
 impl SimpleState for GameState {
@@ -67,12 +69,13 @@ impl SimpleState for GameState {
             .with(local_transform)
             .build();
 
+        let mut chunk = Chunk::new();
 
         // Getting us a ball
         let mesh = data.world
             .exec(|loader: AssetLoaderSystemData<'_, Mesh>| {
                 loader.load_from_data(
-                    gen().into(),
+                    gen(&chunk).into(),
                     (),
                 )
             });
