@@ -296,6 +296,12 @@ mod tests {
     use super::ArenaSegment;
     use super::Arena;
     use super::ArenaNode;
+    use std::mem::size_of;
+
+    #[test]
+    fn test_size_of() {
+        assert_eq!(size_of::<ArenaNode>(), size_of::<u8>()*4 + size_of::<u16>()*8);
+    }
 
     #[test]
     fn test_available_at() {
@@ -348,7 +354,7 @@ mod tests {
                 assert_eq!(indice.segment, j);
                 assert_eq!(indice.indice, i);
             }
-            assert!(arena.segments[1][j as usize].is_full())
+            assert!(arena.segments[0][j as usize].is_full())
         }
     }
 

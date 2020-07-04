@@ -22,6 +22,7 @@ impl std::fmt::Debug for IndexPath {
 }
 
 impl IndexPath {
+    const MAX_SIZE: u8 = 21;
     fn empty() -> IndexPath {
         unsafe {
             IndexPath(std::num::NonZeroU64::new_unchecked(1))
@@ -60,6 +61,10 @@ impl IndexPath {
             IndexPath(std::num::NonZeroU64::new_unchecked((self.0.get() & !0b111) | (octant as u64)))
         }
     }
+    fn len(&self) -> u8 {
+        let num_empty_slots = self.0.get().leading_zeros() as u8 / 3;
+        Self::MAX_SIZE - num_empty_slots
+    }
 }
 
 pub struct Chunk {
@@ -83,7 +88,7 @@ impl Chunk {
             // Strip the top most path element
             let dir = current.peek();
             current = current.pop();
-            if current.is_empty() { // If this is the final path ||
+            if current.is_empty() { // If this is the final path
                 // Set the leaf
                 // node.data[dir as usize] = voxel;
                 self.arena.get_node_mut(node_index).set_on_dir(dir, voxel);
@@ -123,24 +128,6 @@ impl Chunk {
     }
 }
 
-
-struct ChunkIterator<'a> {
-    path: IndexPath,
-    chunk: &'a Chunk,
-}
-
-impl<'a> Iterator for ChunkIterator<'a>  {
-    type Item = &'a ArenaNode;
-
-    fn next(&mut self) -> Option<&'a ArenaNode> {
-        unimplemented!()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        unimplemented!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::octree::chunk::{Chunk, IndexPath};
@@ -152,6 +139,13 @@ mod tests {
     fn test_index_path() {
         assert_eq!(size_of::<IndexPath>(), size_of::<u64>());
         assert_eq!(size_of::<Option<IndexPath>>(), size_of::<u64>());
+
+        let mut path = IndexPath::empty();
+        for i in 0..IndexPath::MAX_SIZE {
+            assert_eq!(path.len(), i);
+            path = path.push(0);
+        }
+        assert_eq!(path.len(), IndexPath::MAX_SIZE);
     }
 
     #[test]
