@@ -2,6 +2,7 @@ use super::voxel::Voxel;
 use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
+use crate::util::tuple_strip::IterUtil;
 
 // Can represent max 21 layers of structures
 // Always prepend index path with a 1
@@ -73,7 +74,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub(crate) fn new() -> Chunk {
+    pub fn new() -> Chunk {
         let mut arena = Arena::new();
         let root_node = arena.alloc(1).child(0);
         Chunk {
@@ -81,17 +82,39 @@ impl Chunk {
             root_node,
         }
     }
-    fn set(&mut self, path: IndexPath, voxel: Voxel) {
+    fn condense_along_path(&mut self, path: &Vec<(ArenaNodeIndice, u8)>) {
+        for ((current_index, _), (parent_index, dir)) in path.iter().rev().tuple_strip() {
+            let current_node = self.arena.get_node(*current_index);
+            if !current_node.is_condensable() {
+                return;
+            }
+            let voxel = current_node.data[0];
+            let dir = *dir;
+            let parent_node = self.arena.get_node_mut(*parent_index);
+            parent_node.set_on_dir(dir, voxel);
+            assert!(parent_node.has_child_on_dir(dir));
+            let new_mask = parent_node.leaf_mask & !(1 << dir);
+            self.arena.realloc(*parent_index, new_mask);
+        }
+    }
+    pub fn set(&mut self, path: IndexPath, voxel: Voxel) {
         let mut current = path;
         let mut node_index = self.root_node;
+
+        // Stack saving the node index, and the dir to take next
+        let mut node_index_stack = Vec::with_capacity(path.len() as usize);
         loop {
             // Strip the top most path element
             let dir = current.peek();
+            node_index_stack.push((node_index, dir));
             current = current.pop();
             if current.is_empty() { // If this is the final path
                 // Set the leaf
                 // node.data[dir as usize] = voxel;
                 self.arena.get_node_mut(node_index).set_on_dir(dir, voxel);
+
+                // Condense the octree
+                self.condense_along_path(&node_index_stack);
                 return;
             } else if let Some(child) = self.arena.get_node(node_index).child_on_dir(dir) {
                 // If there is already a child there
@@ -106,7 +129,7 @@ impl Chunk {
             }
         }
     }
-    fn sample(&self, path: IndexPath) -> Voxel {
+    pub fn sample(&self, path: IndexPath) -> Voxel {
         let mut current = path;
         let mut node_index = self.root_node;
         loop {
@@ -190,6 +213,16 @@ mod tests {
         assert_eq!(chunk.sample(IndexPath::new(0).push(5)), Voxel { data: 5 });
         assert_eq!(chunk.sample(IndexPath::new(1).push(4)), Voxel { data: 4 });
         assert_eq!(chunk.sample(IndexPath::new(7).push(6)), Voxel { data: 86 });
+    }
+
+    #[test]
+    fn test_condense_on_set() {
+        let mut chunk = Chunk::new();
+        for i in 0 ..8 {
+            let index = IndexPath::new(i).push(1);
+            chunk.set(index, Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(i).push(1)), Voxel { data: 13 });
+        }
     }
 }
 

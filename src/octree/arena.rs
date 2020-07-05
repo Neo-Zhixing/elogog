@@ -35,9 +35,12 @@ pub struct ArenaNode {
 }
 
 impl ArenaNode {
+    #[inline]
     pub fn has_child_on_dir(&self, dir: u8) -> bool {
         (1 << dir) & self.leaf_mask != 0
     }
+
+    #[inline]
     pub fn child_on_dir(&self, dir: u8) -> Option<ArenaNodeIndice> {
         if self.has_child_on_dir(dir) {
             Some(ArenaNodeIndice {
@@ -49,9 +52,13 @@ impl ArenaNode {
         }
 
     }
+
+    #[inline]
     pub fn num_children(&self) -> u8 {
         self.leaf_mask.count_ones() as u8
     }
+
+    #[inline]
     pub fn children_block(&self) -> ArenaBlockIndice {
         ArenaBlockIndice {
             segment: self.children_index_segment,
@@ -59,9 +66,22 @@ impl ArenaNode {
             block_size: self.num_children(),
         }
     }
+    #[inline]
     pub fn set_on_dir(&mut self, dir: u8, voxel: Voxel) {
         assert!(dir < 8);
         self.data[dir as usize] = voxel;
+    }
+
+    #[inline]
+    pub fn is_leaf_node(&self) -> bool {
+        self.leaf_mask == 0 // All bits 0
+    }
+    pub fn is_condensable(&self) -> bool {
+        if !self.is_leaf_node() {
+            return false;
+        }
+        let com = self.data[0];
+        self.data.iter().all(|x| *x == com)
     }
 }
 
@@ -89,14 +109,20 @@ impl ArenaSegment {
             group_size
         }
     }
+
+    #[inline]
     fn is_full(&self) -> bool {
         self.next_available.is_none()
     }
+
+    #[inline]
     fn available_at(&self, index: ArenaSegmentIndice) -> bool {
         let val = self.freemask[(index >> 6) as usize];
         let subindex = index & 0b111111;
         val & ((1 as u64) << (subindex as u64)) != 0
     }
+
+    #[inline]
     fn set_available_at(&mut self, index: ArenaSegmentIndice, available: bool) {
         let entry = &mut self.freemask[(index >> 6) as usize];
         let subindex = index & 0b111111; // Take the last 6 bits;
@@ -107,10 +133,12 @@ impl ArenaSegment {
         }
     }
 
+    #[inline]
     fn free(&mut self, index: ArenaSegmentIndice) {
         self.set_available_at(index, true);
         self.next_available = Some(index);
     }
+
     fn find_next_available(&mut self) -> Option<u8> {
         for (index, mask) in self.freemask.iter().enumerate() {
             if *mask == 0 {
@@ -122,6 +150,7 @@ impl ArenaSegment {
         }
         None
     }
+
     fn alloc(&mut self) -> ArenaSegmentIndice {
         if let Some(next_available) = self.next_available {
             // Move forward next_available
@@ -230,6 +259,17 @@ impl Arena {
     }
 
     pub fn realloc(&mut self, indice: ArenaNodeIndice, freemask: u8) {
+        if freemask == 0 {
+            // Free everything. And skip the trouble of copying, etc.
+            let node = self.get_node_mut(indice);
+            node.leaf_mask = 0;
+            node.children_index_indice = 0;
+            node.children_index_segment = 0;
+
+            let old_block_indice = node.children_block();
+            self.free(old_block_indice);
+            return;
+        }
         let new_block_size = freemask.count_ones() as u8;
         let new_block_indice = self.alloc(new_block_size);
         let node = self.get_node(indice);
@@ -276,9 +316,13 @@ impl Arena {
             &self.segments[indice.block_size as usize - 1][indice.segment as usize][indice.indice]
         }
     }
+
+    #[inline]
     pub fn get_node(&self, indice: ArenaNodeIndice) -> &ArenaNode {
         &self.get_block(indice.block)[indice.index as usize]
     }
+
+    #[inline]
     pub fn get_block_mut(&mut self, indice: ArenaBlockIndice) -> &mut [ArenaNode] {
         if indice.block_size == 0 {
             &mut []
@@ -286,6 +330,8 @@ impl Arena {
             &mut self.segments[indice.block_size as usize - 1][indice.segment as usize][indice.indice]
         }
     }
+
+    #[inline]
     pub fn get_node_mut(&mut self, indice: ArenaNodeIndice) -> &mut ArenaNode {
         &mut self.get_block_mut(indice.block)[indice.index as usize]
     }
