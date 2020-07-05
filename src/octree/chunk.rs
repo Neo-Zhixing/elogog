@@ -19,23 +19,6 @@ impl Chunk {
             root_node,
         }
     }
-    fn condense_along_path(&mut self, path: &Vec<(ArenaNodeIndice, u8)>) {
-        for ((current_index, _), (parent_index, dir)) in path.iter().rev().tuple_strip() {
-            let current_node = self.arena.get_node(*current_index);
-            if !current_node.is_condensable() {
-                return;
-            }
-            let voxel = current_node.data[0];
-            let dir = *dir;
-            let parent_node = self.arena.get_node_mut(*parent_index);
-            parent_node.set_on_dir(dir, voxel);
-            assert!(parent_node.has_child_on_dir(dir));
-            let old_mask = parent_node.leaf_mask;
-            let new_mask = parent_node.leaf_mask & !(1 << dir);
-            println!("Realloc: {:#08b} -> {:#08b}", old_mask, new_mask);
-            self.arena.realloc(*parent_index, new_mask);
-        }
-    }
     pub fn set(&mut self, path: IndexPath, voxel: Voxel) {
         let mut current = path;
         let mut node_index = self.root_node;
@@ -53,7 +36,20 @@ impl Chunk {
                 self.arena.get_node_mut(node_index).set_on_dir(dir, voxel);
 
                 // Condense the octree
-                self.condense_along_path(&node_index_stack);
+                for ((current_index, _), (parent_index, dir)) in node_index_stack.iter().rev().tuple_strip() {
+                    let current_node = self.arena.get_node(*current_index);
+                    if !current_node.is_condensable() {
+                        return;
+                    }
+                    let voxel = current_node.data[0];
+                    let dir = *dir;
+                    let parent_node = self.arena.get_node_mut(*parent_index);
+                    parent_node.set_on_dir(dir, voxel);
+                    debug_assert!(parent_node.has_child_on_dir(dir));
+                    let old_mask = parent_node.leaf_mask;
+                    let new_mask = parent_node.leaf_mask & !(1 << dir);
+                    self.arena.realloc(*parent_index, new_mask);
+                }
                 return;
             } else if let Some(child) = self.arena.get_node(node_index).child_on_dir(dir) {
                 // If there is already a child there
@@ -146,14 +142,33 @@ mod tests {
     fn test_condense_on_set() {
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
-        for i in 0 ..8 {
+        for i in 0..8 {
             let index = IndexPath::new(i).push(1);
             chunk.set(index, Voxel { data: 13 });
             assert_eq!(chunk.sample(IndexPath::new(i).push(1)), Voxel { data: 13 });
+            assert_eq!(chunk.arena.count_nodes(), if i == 7 { 1 } else { 2 });
+        }
 
+        // Test multiple levels
+        let mut chunk = Chunk::new();
+        assert_eq!(chunk.arena.count_nodes(), 1);
+        for i in 0..7 {
+            let index = IndexPath::new(i).push(1);
+            chunk.set(index, Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(i).push(1)), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 2);
         }
-        println!("{:?}", chunk.arena);
+        for i in 0..7 {
+            let index = IndexPath::new(i).push(7).push(1);
+            chunk.set(index, Voxel { data: 13 });
+            assert_eq!(chunk.sample(index), Voxel { data: 13 });
+            assert_eq!(chunk.arena.count_nodes(), 3);
+        }
+        // Adding this node should cause everything to collapse back to 0
+        let index = IndexPath::new(7).push(7).push(1);
+        chunk.set(index, Voxel { data: 13 });
+        assert_eq!(chunk.sample(index), Voxel { data: 13 });
+        assert_eq!(chunk.arena.count_nodes(), 1);
     }
 }
 

@@ -1,6 +1,14 @@
-#[derive(Copy, Clone, Debug)]
+use std::fmt::Debug;
+
+#[derive(Copy, Clone)]
 pub struct Voxel {
     pub data: u16
+}
+
+impl std::fmt::Debug for Voxel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{:02X?}", self.data)
+    }
 }
 
 impl std::default::Default for Voxel {

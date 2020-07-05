@@ -26,7 +26,7 @@ pub struct ArenaNodeIndice {
     index: u8 // The position in the child list
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ArenaNode {
     children_index_segment: u8, // meaningless when all leaf
     children_index_indice: u8,
@@ -41,12 +41,11 @@ impl ArenaNode {
         (1 << dir) & self.leaf_mask != 0
     }
 
-    #[inline]
     pub fn child_on_dir(&self, dir: u8) -> Option<ArenaNodeIndice> {
         if self.has_child_on_dir(dir) {
             Some(ArenaNodeIndice {
                 block: self.children_block(),
-                index: (self.leaf_mask >> (dir + 1)).count_ones() as u8,
+                index: if dir == 7 { 0 } else { (self.leaf_mask >> (dir + 1)).count_ones() as u8 },
             })
         } else {
             None
@@ -69,7 +68,7 @@ impl ArenaNode {
     }
     #[inline]
     pub fn set_on_dir(&mut self, dir: u8, voxel: Voxel) {
-        assert!(dir < 8);
+        debug_assert!(dir < 8);
         self.data[dir as usize] = voxel;
     }
 
@@ -84,7 +83,45 @@ impl ArenaNode {
         let com = self.data[0];
         self.data.iter().all(|x| *x == com)
     }
+
+    fn print_node(&self, f: &mut std::fmt::Formatter<'_>, dir: u8) -> Result<(), std::fmt::Error> {
+        debug_assert!(0 <= dir && dir < 8);
+        if self.has_child_on_dir(dir) {
+            write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir as usize]);
+        } else {
+            std::fmt::Debug::fmt(&self.data[dir as usize], f);
+        }
+        Ok(())
+    }
 }
+
+impl std::fmt::Debug for ArenaNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.write_str("|---DN---|---UP---|\n");
+
+        f.write_str("| ");
+        self.print_node(f, 2);
+        f.write_str("  ");
+        self.print_node(f, 3);
+        f.write_str(" | ");
+        self.print_node(f, 6);
+        f.write_str("  ");
+        self.print_node(f, 7);
+        f.write_str(" |\n");
+
+        f.write_str("| ");
+        self.print_node(f, 0);
+        f.write_str("  ");
+        self.print_node(f, 1);
+        f.write_str(" | ");
+        self.print_node(f, 4);
+        f.write_str("  ");
+        self.print_node(f, 5);
+        f.write_str(" |\n-------------------\n");
+        Ok(())
+    }
+}
+
 
 const ARENA_BLOCK_SIZE: usize = 256;
 struct ArenaSegment {
@@ -99,7 +136,7 @@ struct ArenaSegment {
 
 impl ArenaSegment {
     fn new(group_size: u8) -> ArenaSegment {
-        assert!(1 <= group_size && group_size <= 8);
+        debug_assert!(1 <= group_size && group_size <= 8);
         let (layout, block_size) = std::alloc::Layout::new::<ArenaNode>()
             .repeat((group_size as usize) * ARENA_BLOCK_SIZE).unwrap();
         assert_eq!(block_size, std::mem::size_of::<ArenaNode>());
@@ -141,6 +178,7 @@ impl ArenaSegment {
 
     #[inline]
     fn free(&mut self, index: ArenaSegmentIndice) {
+        debug_assert!(!self.available_at(index), "Double free");
         self.set_available_at(index, true);
         self.next_available = Some(index);
     }
@@ -252,7 +290,7 @@ impl Arena {
         }
     }
     pub fn alloc(&mut self, block_size: u8) -> ArenaBlockIndice {
-        assert!(0 < block_size && block_size <= 8);
+        debug_assert!(0 < block_size && block_size <= 8);
 
         // Finding in reverse order the first segment that is empty.
         // In reverse order because empty segments are more likely to be on the back
@@ -292,13 +330,15 @@ impl Arena {
     pub fn realloc(&mut self, indice: ArenaNodeIndice, freemask: u8) {
         if freemask == 0 {
             // Free everything. And skip the trouble of copying, etc.
+            let node = self.get_node(indice);
+            let old_block_indice = node.children_block();
+            self.free(old_block_indice);
+
+
             let node = self.get_node_mut(indice);
             node.leaf_mask = 0;
             node.children_index_indice = 0;
             node.children_index_segment = 0;
-
-            let old_block_indice = node.children_block();
-            self.free(old_block_indice);
             return;
         }
         let new_block_size = freemask.count_ones() as u8;
@@ -383,6 +423,7 @@ impl std::fmt::Debug for Arena {
                 segment.fmt(f);
             }
         }
+        f.write_str("------- End Chunk Arena --------\n");
         Ok(())
     }
 }
