@@ -1,5 +1,6 @@
 use super::voxel::Voxel;
 use std::ops::{Index, IndexMut};
+use std::fmt::Write;
 
 type ArenaSegmentIndice = u8;
 
@@ -111,6 +112,11 @@ impl ArenaSegment {
     }
 
     #[inline]
+    fn count_nodes(&self) -> usize {
+        self.freemask.iter().map(|num| num.count_zeros() as usize).sum()
+    }
+
+    #[inline]
     fn is_full(&self) -> bool {
         self.next_available.is_none()
     }
@@ -207,6 +213,31 @@ impl Drop for ArenaSegment {
         unsafe {
             std::alloc::dealloc(self.nodes as *mut u8, layout);
         }
+    }
+}
+
+impl std::fmt::Debug for ArenaSegment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        for i in 0..=255 {
+            if self.available_at(i) {
+                f.write_char('X');
+            } else {
+                f.write_char('o');
+            }
+        }
+        f.write_char('\n');
+        if let Some(next_available) = self.next_available {
+            for i in 0..=255 {
+                if i == next_available {
+                    f.write_char('^');
+                } else {
+                    f.write_char(' ');
+                }
+            }
+        }
+        f.write_char('\n');
+        writeln!(f, "Each slot has {} nodes", self.group_size);
+        Ok(())
     }
 }
 
@@ -335,6 +366,25 @@ impl Arena {
     pub fn get_node_mut(&mut self, indice: ArenaNodeIndice) -> &mut ArenaNode {
         &mut self.get_block_mut(indice.block)[indice.index as usize]
     }
+
+    #[inline]
+    pub fn count_nodes(&self) -> usize {
+        self.segments.into_iter().map(|segment| segment.into_iter().map(|d| d.count_nodes()).sum::<usize>()).sum()
+    }
+}
+
+impl std::fmt::Debug for Arena {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.write_str("--------- Chunk Arena ----------\n");
+        for (index, segments) in self.segments.iter().enumerate() {
+            writeln!(f, "-----Block sized {}-----", index + 1);
+            for (index, segment) in segments.iter().enumerate() {
+                writeln!(f, "{}: ", index);
+                segment.fmt(f);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -400,7 +450,7 @@ mod tests {
                 assert_eq!(indice.segment, j);
                 assert_eq!(indice.indice, i);
             }
-            assert!(arena.segments[0][j as usize].is_full())
+            assert!(arena.segments[0][j as usize].is_full());
         }
     }
 
