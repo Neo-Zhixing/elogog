@@ -8,15 +8,9 @@ pub struct TupleStrip<T>
     last: Option<T::Item>,
 }
 
-pub fn tuple_strip<T>(iter: T) -> TupleStrip<T>
-    where T: Iterator
-{
-    TupleStrip {
-        iter: iter.fuse(),
-        last: None,
-    }
-}
-
+/**
+ For [1, 2, 3, 4, 5, 6, 7] it generates (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7)
+ */
 impl<T> Iterator for TupleStrip<T>
     where T: Iterator,
         T::Item: Copy
@@ -62,7 +56,10 @@ pub trait IterUtil : Iterator {
     fn tuple_strip(self) -> TupleStrip<Self>
         where Self: Sized
     {
-        tuple_strip(self)
+        TupleStrip {
+            iter: self.fuse(),
+            last: None,
+        }
     }
 }
 

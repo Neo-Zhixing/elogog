@@ -85,11 +85,11 @@ impl ArenaNode {
     }
 
     fn print_node(&self, f: &mut std::fmt::Formatter<'_>, dir: u8) -> Result<(), std::fmt::Error> {
-        debug_assert!(0 <= dir && dir < 8);
+        debug_assert!(dir < 8);
         if self.has_child_on_dir(dir) {
-            write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir as usize]);
+            write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir as usize])?;
         } else {
-            std::fmt::Debug::fmt(&self.data[dir as usize], f);
+            std::fmt::Debug::fmt(&self.data[dir as usize], f)?;
         }
         Ok(())
     }
@@ -97,27 +97,27 @@ impl ArenaNode {
 
 impl std::fmt::Debug for ArenaNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.write_str("|---DN---|---UP---|\n");
+        f.write_str("|---DN---|---UP---|\n")?;
 
-        f.write_str("| ");
-        self.print_node(f, 2);
-        f.write_str("  ");
-        self.print_node(f, 3);
-        f.write_str(" | ");
-        self.print_node(f, 6);
-        f.write_str("  ");
-        self.print_node(f, 7);
-        f.write_str(" |\n");
+        f.write_str("| ")?;
+        self.print_node(f, 2)?;
+        f.write_str("  ")?;
+        self.print_node(f, 3)?;
+        f.write_str(" | ")?;
+        self.print_node(f, 6)?;
+        f.write_str("  ")?;
+        self.print_node(f, 7)?;
+        f.write_str(" |\n")?;
 
-        f.write_str("| ");
-        self.print_node(f, 0);
-        f.write_str("  ");
-        self.print_node(f, 1);
-        f.write_str(" | ");
-        self.print_node(f, 4);
-        f.write_str("  ");
-        self.print_node(f, 5);
-        f.write_str(" |\n-------------------\n");
+        f.write_str("| ")?;
+        self.print_node(f, 0)?;
+        f.write_str("  ")?;
+        self.print_node(f, 1)?;
+        f.write_str(" | ")?;
+        self.print_node(f, 4)?;
+        f.write_str("  ")?;
+        self.print_node(f, 5)?;
+        f.write_str(" |\n-------------------\n")?;
         Ok(())
     }
 }
@@ -258,23 +258,23 @@ impl std::fmt::Debug for ArenaSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         for i in 0..=255 {
             if self.available_at(i) {
-                f.write_char('X');
+                f.write_char('X')?;
             } else {
-                f.write_char('o');
+                f.write_char('o')?;
             }
         }
-        f.write_char('\n');
+        f.write_char('\n')?;
         if let Some(next_available) = self.next_available {
             for i in 0..=255 {
                 if i == next_available {
-                    f.write_char('^');
+                    f.write_char('^')?;
                 } else {
-                    f.write_char(' ');
+                    f.write_char(' ')?;
                 }
             }
         }
-        f.write_char('\n');
-        writeln!(f, "Each slot has {} nodes", self.group_size);
+        f.write_char('\n')?;
+        writeln!(f, "Each slot has {} nodes", self.group_size)?;
         Ok(())
     }
 }
@@ -409,21 +409,21 @@ impl Arena {
 
     #[inline]
     pub fn count_nodes(&self) -> usize {
-        self.segments.into_iter().map(|segment| segment.into_iter().map(|d| d.count_nodes()).sum::<usize>()).sum()
+        self.segments.iter().map(|segment| segment.into_iter().map(|d| d.count_nodes()).sum::<usize>()).sum()
     }
 }
 
 impl std::fmt::Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        f.write_str("--------- Chunk Arena ----------\n");
+        f.write_str("--------- Chunk Arena ----------\n")?;
         for (index, segments) in self.segments.iter().enumerate() {
-            writeln!(f, "-----Block sized {}-----", index + 1);
+            writeln!(f, "-----Block sized {}-----", index + 1)?;
             for (index, segment) in segments.iter().enumerate() {
-                writeln!(f, "{}: ", index);
-                segment.fmt(f);
+                writeln!(f, "{}: ", index)?;
+                segment.fmt(f)?;
             }
         }
-        f.write_str("------- End Chunk Arena --------\n");
+        f.write_str("------- End Chunk Arena --------\n")?;
         Ok(())
     }
 }

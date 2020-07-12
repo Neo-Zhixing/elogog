@@ -47,7 +47,7 @@ impl Chunk {
                     parent_node.set_on_dir(dir, voxel);
                     debug_assert!(parent_node.has_child_on_dir(dir));
                     let old_mask = parent_node.leaf_mask;
-                    let new_mask = parent_node.leaf_mask & !(1 << dir);
+                    let new_mask = old_mask & !(1 << dir);
                     self.arena.realloc(*parent_index, new_mask);
                 }
                 return;
