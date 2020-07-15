@@ -42,6 +42,7 @@ use amethyst::{
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
 use crate::octree::mesh::gen;
+use crate::octree::mesh::gen_wireframe;
 use crate::octree::chunk::Chunk;
 
 struct GameState;
@@ -106,6 +107,7 @@ impl SimpleState for GameState {
             .with(pos)
             .with(mesh)
             .with(material)
+            .with(gen_wireframe(&chunk))
             .build();
 
 

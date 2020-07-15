@@ -68,7 +68,6 @@ impl<T> IterUtil for T where T: Iterator { }
 #[cfg(test)]
 mod tests {
     use super::TupleStrip;
-    use super::tuple_strip;
     use super::IterUtil;
     #[test]
     fn test_nums() {

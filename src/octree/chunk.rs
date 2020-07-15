@@ -3,7 +3,7 @@ use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use super::index_path::IndexPath;
 use std::ops::{Index, IndexMut};
 use crate::util::tuple_strip::IterUtil;
-
+use amethyst::ecs::{Component, DenseVecStorage};
 
 pub struct Chunk {
     arena: Arena,
@@ -85,6 +85,59 @@ impl Chunk {
         }
     }
 }
+
+
+struct ChunkVoxelIterator<'a> {
+    chunk: &'a Chunk,
+    stack: Vec<(u8, ArenaNodeIndice)>,
+    dir: u8, // Next voxel to emit
+}
+
+impl Chunk {
+    fn iter_leaf(&self) -> ChunkVoxelIterator {
+        ChunkVoxelIterator {
+            chunk: &self,
+            stack: vec![(0, self.root_node)],
+            dir: 0
+        }
+    }
+}
+impl<'a> Iterator for ChunkVoxelIterator<'a> {
+    type Item = (Voxel);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(tuple) = self.stack.last() {
+                let (fromdir, indice) = *tuple;
+                if self.dir >= 8 {
+                    // Pop from stack
+                    self.stack.pop();
+                    self.dir = fromdir + 1;
+                    continue;
+                }
+                let node = self.chunk.arena.get_node(indice);
+                if let Some(subnode) = node.child_on_dir(self.dir) {
+                    // Has a child on that dir, needs to go deeper
+                    self.stack.push((self.dir, subnode));
+                    self.dir = 0;
+                    continue;
+                } else {
+                    let dir = self.dir;
+                    self.dir += 1;
+                    return Some(node.data[dir as usize]);
+                }
+            } else {
+                return None;
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let num_nodes = self.chunk.arena.count_nodes();
+        (num_nodes, Some(num_nodes * 8))
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -170,5 +223,34 @@ mod tests {
         assert_eq!(chunk.sample(index), Voxel { data: 13 });
         assert_eq!(chunk.arena.count_nodes(), 1);
     }
+
+    #[test]
+    fn test_chunk_leaf_iterator() {
+        let mut chunk = Chunk::new();
+        for i in 0..7 {
+            chunk.set(IndexPath::new(i), Voxel::new(i as u16));
+        }
+        for i in 0..7 {
+            chunk.set(IndexPath::new(i).push(7), Voxel::new(i as u16 + 16));
+        }
+
+        for i in 0..8 {
+            chunk.set(IndexPath::new(i).push(7).push(7), Voxel::new(i as u16 + 32));
+        }
+
+        let mut iter = chunk.iter_leaf();
+        for (i, voxel) in iter.enumerate() {
+            if i < 7 {
+                assert_eq!(voxel.data, i as u16);
+            } else if i < 14 {
+                assert_eq!(voxel.data, i as u16 + 9);
+            } else {
+                assert_eq!(voxel.data, i as u16 + 18);
+            }
+        }
+    }
 }
 
+impl Component for Chunk {
+    type Storage = DenseVecStorage<Self>;
+}

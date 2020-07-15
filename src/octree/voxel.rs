@@ -19,6 +19,15 @@ impl std::default::Default for Voxel {
     }
 }
 
+impl Voxel {
+    #[inline]
+    pub(crate) fn new(data: u16) -> Self {
+        Voxel {
+            data
+        }
+    }
+}
+
 impl PartialEq for Voxel {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data

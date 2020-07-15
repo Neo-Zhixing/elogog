@@ -2,8 +2,10 @@ use super::voxel::Voxel;
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
 
+// Locate a node block inside a segment
 type ArenaSegmentIndice = u8;
 
+// Locate a node group inside the entire arena
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ArenaBlockIndice {
     segment: u8,
@@ -20,12 +22,14 @@ impl ArenaBlockIndice {
     }
 }
 
+// Locate a single voxel inside the entire arena
 #[derive(Copy, Clone, Debug)]
 pub struct ArenaNodeIndice {
     block: ArenaBlockIndice,
     index: u8 // The position in the child list
 }
 
+// A node in the octree. Always group by N where N is parent's child count
 #[derive(Clone)]
 pub struct ArenaNode {
     children_index_segment: u8, // meaningless when all leaf
@@ -253,6 +257,8 @@ impl Drop for ArenaSegment {
         }
     }
 }
+unsafe impl Send for ArenaSegment { }
+unsafe impl Sync for ArenaSegment { }
 
 impl std::fmt::Debug for ArenaSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
