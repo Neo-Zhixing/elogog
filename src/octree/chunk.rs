@@ -87,14 +87,14 @@ impl Chunk {
 }
 
 
-struct ChunkVoxelIterator<'a> {
+pub struct ChunkVoxelIterator<'a> {
     chunk: &'a Chunk,
     stack: Vec<(u8, ArenaNodeIndice)>,
     dir: u8, // Next voxel to emit
 }
 
 impl Chunk {
-    fn iter_leaf(&self) -> ChunkVoxelIterator {
+    pub fn iter_leaf(&self) -> ChunkVoxelIterator {
         ChunkVoxelIterator {
             chunk: &self,
             stack: vec![(0, self.root_node)],
@@ -102,8 +102,9 @@ impl Chunk {
         }
     }
 }
+
 impl<'a> Iterator for ChunkVoxelIterator<'a> {
-    type Item = (Voxel);
+    type Item = (IndexPath, Voxel);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -124,7 +125,12 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                 } else {
                     let dir = self.dir;
                     self.dir += 1;
-                    return Some(node.data[dir as usize]);
+
+                    let mut index_path = IndexPath::new(dir);
+                    for (dir, _) in self.stack.iter().skip(1).rev() {
+                        index_path = index_path.push(*dir);
+                    }
+                    return Some((index_path, node.data[dir as usize]));
                 }
             } else {
                 return None;
@@ -239,13 +245,16 @@ mod tests {
         }
 
         let mut iter = chunk.iter_leaf();
-        for (i, voxel) in iter.enumerate() {
+        for (i, (index_path, voxel)) in iter.enumerate() {
             if i < 7 {
                 assert_eq!(voxel.data, i as u16);
+                assert_eq!(index_path, IndexPath::new(i as u8));
             } else if i < 14 {
                 assert_eq!(voxel.data, i as u16 + 9);
+                assert_eq!(index_path, IndexPath::new(i as u8 - 7).push(7));
             } else {
                 assert_eq!(voxel.data, i as u16 + 18);
+                assert_eq!(index_path, IndexPath::new(i as u8 - 14).push(7).push(7));
             }
         }
     }

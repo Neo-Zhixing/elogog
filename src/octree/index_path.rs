@@ -65,6 +65,15 @@ impl IndexPath {
     }
 }
 
+impl PartialEq for IndexPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for IndexPath {
+}
+
 #[cfg(test)]
 mod tests {
     use crate::octree::index_path::IndexPath;
