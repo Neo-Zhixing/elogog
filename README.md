@@ -1,5 +1,7 @@
 # gog
 
+![Cargo](https://github.com/Neo-Zhixing/elogog/workflows/Cargo/badge.svg)
+
 ## How to run
 
 To run the game, run the following command, which defaults to the `vulkan` graphics backend:

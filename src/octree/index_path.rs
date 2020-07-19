@@ -3,7 +3,7 @@ use std::num::NonZeroU64;
 use amethyst::core::math::Vector3;
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Direction {
     FrontLeftBottom = 0,
     FrontRightBottom = 1,
@@ -104,6 +104,20 @@ impl PartialEq for IndexPath {
 impl Eq for IndexPath {
 }
 
+impl Iterator for IndexPath {
+    type Item = Direction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_empty() {
+            None
+        } else {
+            let dir = self.peek();
+            self.0 = self.pop().0;
+            Some(dir)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::IndexPath;
@@ -121,5 +135,19 @@ mod tests {
             path = path.push(Direction::FrontLeftBottom);
         }
         assert_eq!(path.len(), IndexPath::MAX_SIZE);
+    }
+
+    #[test]
+    fn test_iterator() {
+        let mut index_path = IndexPath::empty();
+        for i in 0..7 {
+            index_path = index_path.push(i.into());
+        }
+        for i in (0..7).rev() {
+            let dir: Direction = i.into();
+            assert_eq!(index_path.next(), Some(dir));
+        }
+
+        assert_eq!(index_path.next(), None);
     }
 }
