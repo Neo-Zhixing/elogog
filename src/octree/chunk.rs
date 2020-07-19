@@ -1,10 +1,10 @@
 use super::voxel::Voxel;
 use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use super::index_path::IndexPath;
+use super::direction::Direction;
 use std::ops::{Index, IndexMut};
 use crate::util::tuple_strip::IterUtil;
 use amethyst::ecs::{Component, DenseVecStorage};
-use crate::octree::index_path::Direction;
 
 pub struct Chunk {
     arena: Arena,

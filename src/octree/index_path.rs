@@ -1,36 +1,7 @@
 use std::fmt::Write;
 use std::num::NonZeroU64;
 use amethyst::core::math::Vector3;
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Direction {
-    FrontLeftBottom = 0,
-    FrontRightBottom = 1,
-    RearLeftBottom = 2,
-    RearRightBottom = 3,
-    FrontLeftTop = 4,
-    FrontRightTop = 5,
-    RearLeftTop = 6,
-    RearRightTop = 7,
-}
-
-impl From<u8> for Direction {
-    fn from(val: u8) -> Self {
-        let val = val & 0b111;
-        match val {
-            0 => Direction::FrontLeftBottom,
-            1 => Direction::FrontRightBottom,
-            2 => Direction::RearLeftBottom,
-            3 => Direction::RearRightBottom,
-            4 => Direction::FrontLeftTop,
-            5 => Direction::FrontRightTop,
-            6 => Direction::RearLeftTop,
-            7 => Direction::RearRightTop,
-            _ => unreachable!()
-        }
-    }
-}
+use super::direction::Direction;
 
 // Can represent max 21 layers of structures
 // Always prepend index path with a 1

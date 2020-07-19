@@ -1,7 +1,7 @@
 use super::voxel::Voxel;
+use super::direction::Direction;
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
-use crate::octree::index_path::Direction;
 
 // Locate a node block inside a segment
 type ArenaSegmentIndice = u8;
@@ -48,9 +48,10 @@ impl ArenaNode {
 
     pub fn child_on_dir(&self, dir: Direction) -> Option<ArenaNodeIndice> {
         if self.has_child_on_dir(dir) {
+            let mask = self.leaf_mask >> 1;
             Some(ArenaNodeIndice {
                 block: self.children_block(),
-                index: if (dir as u8) == 7 { 0 } else { (self.leaf_mask >> ((dir as u8) + 1)).count_ones() as u8 },
+                index: (mask >> dir as u8).count_ones() as u8,
             })
         } else {
             None
