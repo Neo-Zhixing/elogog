@@ -5,6 +5,13 @@ pub struct Voxel {
     pub data: u16
 }
 
+impl Voxel {
+    pub fn raw(data: u16) -> Self {
+        Voxel {
+            data,
+        }
+    }
+}
 impl std::fmt::Debug for Voxel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:02X?}", self.data)

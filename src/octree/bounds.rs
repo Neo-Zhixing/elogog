@@ -10,13 +10,24 @@ pub struct Bounds {
 }
 
 impl Bounds {
-    pub fn new() -> Bounds {
+    const MAX_WIDTH: u32 = (1 << 31);
+    pub fn new() -> Self {
         Bounds {
             x: 0,
             y: 0,
             z: 0,
-            width: (1 << 31),
+            width: Self::MAX_WIDTH,
         }
+    }
+    pub fn get_position(&self) -> math::Point3<f32> {
+        math::Point3::new(
+            self.x as f32,
+            self.y as f32,
+            self.z as f32,
+        ) / (Self::MAX_WIDTH as f32)
+    }
+    pub fn get_width(&self) -> f32 {
+        self.width as f32 / Self::MAX_WIDTH as f32
     }
 }
 

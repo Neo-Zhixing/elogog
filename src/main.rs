@@ -41,9 +41,11 @@ use amethyst::{
 };
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
-use crate::octree::mesh::gen;
 use crate::octree::mesh::gen_wireframe;
 use crate::octree::chunk::Chunk;
+use crate::octree::index_path::IndexPath;
+use crate::octree::voxel::Voxel;
+use crate::octree::direction::Direction;
 
 struct GameState;
 
@@ -71,8 +73,12 @@ impl SimpleState for GameState {
             .build();
 
         let mut chunk = Chunk::new();
+        chunk.set(IndexPath::new(Direction::RearRightTop).push(Direction::RearRightTop), Voxel::raw(12));
+
+        chunk.set(IndexPath::new(Direction::RearRightTop).push(Direction::FrontRightTop).push(Direction::RearRightTop), Voxel::raw(12));
 
         // Getting us a ball
+        /*
         let mesh = data.world
             .exec(|loader: AssetLoaderSystemData<'_, Mesh>| {
                 loader.load_from_data(
@@ -102,14 +108,14 @@ impl SimpleState for GameState {
             });
         let mut pos = Transform::default();
         pos.set_translation_xyz(0.0, 0.0, 0.0);
+        */
         data.world
             .create_entity()
-            .with(pos)
-            .with(mesh)
-            .with(material)
+            //.with(pos)
+            //.with(mesh)
+            //.with(material)
             .with(gen_wireframe(&chunk))
             .build();
-
 
         // Creating light source
         let light: light::Light = light::DirectionalLight {

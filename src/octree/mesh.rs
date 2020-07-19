@@ -30,44 +30,24 @@ use amethyst::{
     utils::application_root_dir,
     winit::VirtualKeyCode,
 };
-
-pub fn gen(chunk: &Chunk) -> MeshBuilder<'static> {
-  let bd = MeshBuilder::new();
-    bd
-        .with_vertices(vec![
-          Position([0.0, 0.0, 0.0]),
-          Position([0.0, 1.0, 0.0]),
-          Position([0.0, 0.0, 1.0]),
-        ])
-        .with_vertices(vec![
-          Normal([0.0, 0.0, 0.0]),
-          Normal([0.0, 0.0, 0.0]),
-          Normal([0.0, 0.0, 0.0]),
-        ])
-        .with_vertices(vec![
-            TexCoord([0.0, 0.0]),
-            TexCoord([0.0, 0.0]),
-            TexCoord([0.0, 0.0]),
-        ])
-        .with_indices(Indices::U16(vec![0, 1, 2].into()))
-}
+use crate::octree::bounds::Bounds;
 
 pub fn gen_wireframe(chunk: &Chunk) -> DebugLinesComponent {
     let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
-    debug_lines_component.add_direction(
-        [0.0, 0.0001, 0.0].into(),
-        [0.2, 0.0, 0.0].into(),
-        Srgba::new(1.0, 0.0, 0.23, 1.0),
-    );
-    debug_lines_component.add_direction(
-        [0.0, 0.0, 0.0].into(),
-        [0.0, 0.2, 0.0].into(),
-        Srgba::new(0.5, 0.85, 0.1, 1.0),
-    );
-    debug_lines_component.add_direction(
-        [0.0, 0.0001, 0.0].into(),
-        [0.0, 0.0, 0.2].into(),
-        Srgba::new(0.2, 0.75, 0.93, 1.0),
-    );
+    for (index_path, voxel) in chunk.iter_leaf() {
+        let bounds: Bounds = index_path.into();
+        let position = bounds.get_position();
+        let width = bounds.get_width();
+
+        for i in 0..3 {
+            let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
+            dir[i] = width;
+            debug_lines_component.add_direction(
+                position,
+                dir.into(),
+                Srgba::new(1.0, 0.5, 0.23, 1.0),
+            );
+        }
+    }
     debug_lines_component
 }
