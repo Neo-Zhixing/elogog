@@ -4,6 +4,7 @@ use super::index_path::IndexPath;
 use std::ops::{Index, IndexMut};
 use crate::util::tuple_strip::IterUtil;
 use amethyst::ecs::{Component, DenseVecStorage};
+use crate::octree::index_path::Direction;
 
 pub struct Chunk {
     arena: Arena,
@@ -47,7 +48,7 @@ impl Chunk {
                     parent_node.set_on_dir(dir, voxel);
                     debug_assert!(parent_node.has_child_on_dir(dir));
                     let old_mask = parent_node.leaf_mask;
-                    let new_mask = old_mask & !(1 << dir);
+                    let new_mask = old_mask & !(1 << (dir as u8));
                     self.arena.realloc(*parent_index, new_mask);
                 }
                 return;
@@ -58,7 +59,7 @@ impl Chunk {
             } else {
                 // Realloc
                 let old_freemask = self.arena.get_node(node_index).leaf_mask;
-                self.arena.realloc(node_index, old_freemask | (1 << dir));
+                self.arena.realloc(node_index, old_freemask | (1 << (dir as u8)));
                 node_index = self.arena.get_node(node_index).child_on_dir(dir).unwrap();
                 continue;
             }
@@ -117,7 +118,7 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                     continue;
                 }
                 let node = self.chunk.arena.get_node(indice);
-                if let Some(subnode) = node.child_on_dir(self.dir) {
+                if let Some(subnode) = node.child_on_dir(self.dir.into()) {
                     // Has a child on that dir, needs to go deeper
                     self.stack.push((self.dir, subnode));
                     self.dir = 0;
@@ -126,9 +127,9 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                     let dir = self.dir;
                     self.dir += 1;
 
-                    let mut index_path = IndexPath::new(dir);
+                    let mut index_path = IndexPath::new(dir.into());
                     for (dir, _) in self.stack.iter().skip(1).rev() {
-                        index_path = index_path.push(*dir);
+                        index_path = index_path.push((*dir).into());
                     }
                     return Some((index_path, node.data[dir as usize]));
                 }
@@ -148,6 +149,7 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::Chunk;
+    use super::Direction;
     use crate::octree::index_path::IndexPath;
     use crate::octree::voxel::Voxel;
     use std::mem::size_of;
@@ -157,44 +159,44 @@ mod tests {
     fn test_set_first_level() {
         let mut chunk = Chunk::new();
         for i in 0..8 {
-            assert_eq!(chunk.sample(IndexPath::new(i)), Voxel { data: 0 });
+            assert_eq!(chunk.sample(IndexPath::new(i.into())), Voxel { data: 0 });
         }
         for i in 0..8 {
-            chunk.set(IndexPath::new(i), Voxel { data: i as u16 });
+            chunk.set(IndexPath::new(i.into()), Voxel { data: i as u16 });
         }
         for i in 0..8 {
-            assert_eq!(chunk.sample(IndexPath::new(i)), Voxel { data: i as u16 });
+            assert_eq!(chunk.sample(IndexPath::new(i.into())), Voxel { data: i as u16 });
         }
     }
     #[test]
     fn test_set_second_level() {
         let mut chunk = Chunk::new();
-        let index_path = IndexPath::new(0).push(1);
+        let index_path = IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightBottom);
         chunk.set(index_path, Voxel { data: 13 });
         assert_eq!(chunk.sample(index_path), Voxel { data: 13 });
 
         // Another allocation
-        chunk.set(IndexPath::new(0).push(2), Voxel { data : 12 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(1)), Voxel { data: 13 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(2)), Voxel { data: 12 });
+        chunk.set(IndexPath::new(Direction::FrontLeftBottom).push(Direction::RearLeftBottom), Voxel { data : 12 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::RearLeftBottom)), Voxel { data: 12 });
 
-        chunk.set(IndexPath::new(0).push(5), Voxel { data : 5 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(1)), Voxel { data: 13 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(2)), Voxel { data: 12 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(5)), Voxel { data: 5 });
+        chunk.set(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightTop), Voxel { data : 5 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::RearLeftBottom)), Voxel { data: 12 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightTop)), Voxel { data: 5 });
 
-        chunk.set(IndexPath::new(1).push(4), Voxel { data : 4 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(1)), Voxel { data: 13 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(2)), Voxel { data: 12 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(5)), Voxel { data: 5 });
-        assert_eq!(chunk.sample(IndexPath::new(1).push(4)), Voxel { data: 4 });
+        chunk.set(IndexPath::new(Direction::FrontRightBottom).push(Direction::FrontLeftTop), Voxel { data : 4 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::RearLeftBottom)), Voxel { data: 12 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightTop)), Voxel { data: 5 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontRightBottom).push(Direction::FrontLeftTop)), Voxel { data: 4 });
 
-        chunk.set(IndexPath::new(7).push(6), Voxel { data : 86 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(1)), Voxel { data: 13 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(2)), Voxel { data: 12 });
-        assert_eq!(chunk.sample(IndexPath::new(0).push(5)), Voxel { data: 5 });
-        assert_eq!(chunk.sample(IndexPath::new(1).push(4)), Voxel { data: 4 });
-        assert_eq!(chunk.sample(IndexPath::new(7).push(6)), Voxel { data: 86 });
+        chunk.set(IndexPath::new(Direction::RearRightTop).push(Direction::RearLeftTop), Voxel { data : 86 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::RearLeftBottom)), Voxel { data: 12 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontLeftBottom).push(Direction::FrontRightTop)), Voxel { data: 5 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::FrontRightBottom).push(Direction::FrontLeftTop)), Voxel { data: 4 });
+        assert_eq!(chunk.sample(IndexPath::new(Direction::RearRightTop).push(Direction::RearLeftTop)), Voxel { data: 86 });
     }
 
     #[test]
@@ -202,9 +204,9 @@ mod tests {
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
         for i in 0..8 {
-            let index = IndexPath::new(i).push(1);
+            let index = IndexPath::new(i.into()).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
-            assert_eq!(chunk.sample(IndexPath::new(i).push(1)), Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(i.into()).push(Direction::FrontRightBottom)), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), if i == 7 { 1 } else { 2 });
         }
 
@@ -212,19 +214,19 @@ mod tests {
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
         for i in 0..7 {
-            let index = IndexPath::new(i).push(1);
+            let index = IndexPath::new(i.into()).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
-            assert_eq!(chunk.sample(IndexPath::new(i).push(1)), Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(i.into()).push(Direction::FrontRightBottom)), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 2);
         }
         for i in 0..7 {
-            let index = IndexPath::new(i).push(7).push(1);
+            let index = IndexPath::new(i.into()).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
             assert_eq!(chunk.sample(index), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 3);
         }
         // Adding this node should cause everything to collapse back to 0
-        let index = IndexPath::new(7).push(7).push(1);
+        let index = IndexPath::new(Direction::RearRightTop).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
         chunk.set(index, Voxel { data: 13 });
         assert_eq!(chunk.sample(index), Voxel { data: 13 });
         assert_eq!(chunk.arena.count_nodes(), 1);
@@ -234,27 +236,27 @@ mod tests {
     fn test_chunk_leaf_iterator() {
         let mut chunk = Chunk::new();
         for i in 0..7 {
-            chunk.set(IndexPath::new(i), Voxel::new(i as u16));
+            chunk.set(IndexPath::new(i.into()), Voxel::new(i as u16));
         }
         for i in 0..7 {
-            chunk.set(IndexPath::new(i).push(7), Voxel::new(i as u16 + 16));
+            chunk.set(IndexPath::new(i.into()).push(Direction::RearRightTop), Voxel::new(i as u16 + 16));
         }
 
         for i in 0..8 {
-            chunk.set(IndexPath::new(i).push(7).push(7), Voxel::new(i as u16 + 32));
+            chunk.set(IndexPath::new(i.into()).push(Direction::RearRightTop).push(Direction::RearRightTop), Voxel::new(i as u16 + 32));
         }
 
         let mut iter = chunk.iter_leaf();
         for (i, (index_path, voxel)) in iter.enumerate() {
             if i < 7 {
                 assert_eq!(voxel.data, i as u16);
-                assert_eq!(index_path, IndexPath::new(i as u8));
+                assert_eq!(index_path, IndexPath::new((i as u8).into()));
             } else if i < 14 {
                 assert_eq!(voxel.data, i as u16 + 9);
-                assert_eq!(index_path, IndexPath::new(i as u8 - 7).push(7));
+                assert_eq!(index_path, IndexPath::new((i as u8 - 7).into()).push(Direction::RearRightTop));
             } else {
                 assert_eq!(voxel.data, i as u16 + 18);
-                assert_eq!(index_path, IndexPath::new(i as u8 - 14).push(7).push(7));
+                assert_eq!(index_path, IndexPath::new((i as u8 - 14).into()).push(Direction::RearRightTop).push(Direction::RearRightTop));
             }
         }
     }

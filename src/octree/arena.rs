@@ -1,6 +1,7 @@
 use super::voxel::Voxel;
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
+use crate::octree::index_path::Direction;
 
 // Locate a node block inside a segment
 type ArenaSegmentIndice = u8;
@@ -41,15 +42,15 @@ pub struct ArenaNode {
 
 impl ArenaNode {
     #[inline]
-    pub fn has_child_on_dir(&self, dir: u8) -> bool {
-        (1 << dir) & self.leaf_mask != 0
+    pub fn has_child_on_dir(&self, dir: Direction) -> bool {
+        (1 << dir as u8) & self.leaf_mask != 0
     }
 
-    pub fn child_on_dir(&self, dir: u8) -> Option<ArenaNodeIndice> {
+    pub fn child_on_dir(&self, dir: Direction) -> Option<ArenaNodeIndice> {
         if self.has_child_on_dir(dir) {
             Some(ArenaNodeIndice {
                 block: self.children_block(),
-                index: if dir == 7 { 0 } else { (self.leaf_mask >> (dir + 1)).count_ones() as u8 },
+                index: if (dir as u8) == 7 { 0 } else { (self.leaf_mask >> ((dir as u8) + 1)).count_ones() as u8 },
             })
         } else {
             None
@@ -71,8 +72,7 @@ impl ArenaNode {
         }
     }
     #[inline]
-    pub fn set_on_dir(&mut self, dir: u8, voxel: Voxel) {
-        debug_assert!(dir < 8);
+    pub fn set_on_dir(&mut self, dir: Direction, voxel: Voxel) {
         self.data[dir as usize] = voxel;
     }
 
@@ -88,8 +88,7 @@ impl ArenaNode {
         self.data.iter().all(|x| *x == com)
     }
 
-    fn print_node(&self, f: &mut std::fmt::Formatter<'_>, dir: u8) -> Result<(), std::fmt::Error> {
-        debug_assert!(dir < 8);
+    fn print_node(&self, f: &mut std::fmt::Formatter<'_>, dir: Direction) -> Result<(), std::fmt::Error> {
         if self.has_child_on_dir(dir) {
             write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir as usize])?;
         } else {
@@ -104,23 +103,23 @@ impl std::fmt::Debug for ArenaNode {
         f.write_str("|---DN---|---UP---|\n")?;
 
         f.write_str("| ")?;
-        self.print_node(f, 2)?;
+        self.print_node(f, Direction::RearLeftBottom)?;
         f.write_str("  ")?;
-        self.print_node(f, 3)?;
+        self.print_node(f, Direction::RearRightBottom)?;
         f.write_str(" | ")?;
-        self.print_node(f, 6)?;
+        self.print_node(f, Direction::RearLeftTop)?;
         f.write_str("  ")?;
-        self.print_node(f, 7)?;
+        self.print_node(f, Direction::RearRightTop)?;
         f.write_str(" |\n")?;
 
         f.write_str("| ")?;
-        self.print_node(f, 0)?;
+        self.print_node(f, Direction::FrontLeftBottom)?;
         f.write_str("  ")?;
-        self.print_node(f, 1)?;
+        self.print_node(f, Direction::FrontRightBottom)?;
         f.write_str(" | ")?;
-        self.print_node(f, 4)?;
+        self.print_node(f, Direction::FrontLeftTop)?;
         f.write_str("  ")?;
-        self.print_node(f, 5)?;
+        self.print_node(f, Direction::FrontRightTop)?;
         f.write_str(" |\n-------------------\n")?;
         Ok(())
     }
@@ -212,6 +211,11 @@ impl ArenaSegment {
             }
 
             // Initialize variables
+            for node in self[next_available].iter_mut() {
+                node.data = [Voxel::default(); 8];
+                node.leaf_mask = 0;
+                node.load_mask = 0;
+            }
             next_available
         } else {
             panic!("Can't allocate new node group because the current segment is full");
@@ -439,6 +443,7 @@ mod tests {
     use super::ArenaSegment;
     use super::Arena;
     use super::ArenaNode;
+    use super::Direction;
     use std::mem::size_of;
 
     #[test]
@@ -510,13 +515,13 @@ mod tests {
             load_mask: 0,
             data: Default::default(),
         };
-        assert_eq!(node.child_on_dir(0).unwrap().index, 3);
-        assert_eq!(node.child_on_dir(2).unwrap().index, 2);
-        assert_eq!(node.child_on_dir(3).unwrap().index, 1);
-        assert_eq!(node.child_on_dir(5).unwrap().index, 0);
-        assert!(node.child_on_dir(1).is_none());
-        assert!(node.child_on_dir(4).is_none());
-        assert!(node.child_on_dir(6).is_none());
-        assert!(node.child_on_dir(7).is_none());
+        assert_eq!(node.child_on_dir(Direction::FrontLeftBottom).unwrap().index, 3);
+        assert_eq!(node.child_on_dir(Direction::RearLeftBottom).unwrap().index, 2);
+        assert_eq!(node.child_on_dir(Direction::RearRightBottom).unwrap().index, 1);
+        assert_eq!(node.child_on_dir(Direction::FrontRightTop).unwrap().index, 0);
+        assert!(node.child_on_dir(Direction::FrontRightBottom).is_none());
+        assert!(node.child_on_dir(Direction::FrontLeftTop).is_none());
+        assert!(node.child_on_dir(Direction::RearLeftTop).is_none());
+        assert!(node.child_on_dir(Direction::RearRightTop).is_none());
     }
 }

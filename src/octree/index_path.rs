@@ -1,5 +1,36 @@
 use std::fmt::Write;
 use std::num::NonZeroU64;
+use amethyst::core::math::Vector3;
+
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum Direction {
+    FrontLeftBottom = 0,
+    FrontRightBottom = 1,
+    RearLeftBottom = 2,
+    RearRightBottom = 3,
+    FrontLeftTop = 4,
+    FrontRightTop = 5,
+    RearLeftTop = 6,
+    RearRightTop = 7,
+}
+
+impl From<u8> for Direction {
+    fn from(val: u8) -> Self {
+        let val = val & 0b111;
+        match val {
+            0 => Direction::FrontLeftBottom,
+            1 => Direction::FrontRightBottom,
+            2 => Direction::RearLeftBottom,
+            3 => Direction::RearRightBottom,
+            4 => Direction::FrontLeftTop,
+            5 => Direction::FrontRightTop,
+            6 => Direction::RearLeftTop,
+            7 => Direction::RearRightTop,
+            _ => unreachable!()
+        }
+    }
+}
 
 // Can represent max 21 layers of structures
 // Always prepend index path with a 1
@@ -11,7 +42,7 @@ impl std::fmt::Debug for IndexPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let mut current = self.clone();
         while !current.is_empty() {
-            f.write_char((current.peek() + '0' as u8).into())?;
+            f.write_char((current.peek() as u8 + '0' as u8).into())?;
             current = current.pop();
             f.write_char('/')?;
         }
@@ -26,7 +57,7 @@ impl IndexPath {
             IndexPath(std::num::NonZeroU64::new_unchecked(1))
         }
     }
-    pub fn new(octant: u8) -> IndexPath {
+    pub fn new(octant: Direction) -> IndexPath {
         IndexPath::empty().push(octant)
     }
     pub fn is_empty(&self) -> bool {
@@ -36,9 +67,9 @@ impl IndexPath {
         // Check highest bit
         (self.0.get() >> 63) == 1
     }
-    pub fn peek(&self) -> u8 {
+    pub fn peek(&self) -> Direction {
         assert!(!self.is_empty());
-        self.0.get() as u8 & 0b111
+        (self.0.get() as u8 & 0b111).into()
     }
     pub fn pop(&self) -> IndexPath {
         assert!(!self.is_empty());
@@ -46,8 +77,7 @@ impl IndexPath {
             IndexPath(NonZeroU64::new_unchecked(self.0.get() >> 3))
         }
     }
-    pub fn push(&self, octant: u8) -> IndexPath {
-        assert!(octant < 8);
+    pub fn push(&self, octant: Direction) -> IndexPath {
         assert!(!self.is_full(), "The index path is full");
         unsafe {
             IndexPath(NonZeroU64::new_unchecked((self.0.get() << 3) | (octant as u64)))
@@ -76,7 +106,8 @@ impl Eq for IndexPath {
 
 #[cfg(test)]
 mod tests {
-    use crate::octree::index_path::IndexPath;
+    use super::IndexPath;
+    use super::Direction;
     use std::mem::size_of;
 
     #[test]
@@ -87,7 +118,7 @@ mod tests {
         let mut path = IndexPath::empty();
         for i in 0..IndexPath::MAX_SIZE {
             assert_eq!(path.len(), i);
-            path = path.push(0);
+            path = path.push(Direction::FrontLeftBottom);
         }
         assert_eq!(path.len(), IndexPath::MAX_SIZE);
     }
