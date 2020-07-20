@@ -41,6 +41,11 @@ impl Direction {
     pub fn is_min_z(&self) -> bool {
         *self as u8 & 0b100 == 0
     }
+
+
+    pub fn iter() -> DirectionIterator {
+      DirectionIterator { dir: 0 }
+    }
 }
 
 impl From<u8> for Direction {
@@ -57,5 +62,28 @@ impl From<u8> for Direction {
             7 => Direction::RearRightTop,
             _ => unreachable!()
         }
+    }
+}
+
+struct DirectionIterator {
+    dir: u8
+}
+
+impl Iterator for DirectionIterator {
+    type Item = Direction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.dir >= 8 {
+            return None;
+        }
+        let dir = self.dir;
+        self.dir += 1;
+        Some(dir.into())
+    }
+}
+
+impl ExactSizeIterator for DirectionIterator {
+    fn len(&self) -> usize {
+        8
     }
 }
