@@ -89,21 +89,50 @@ impl Chunk {
     }
 }
 
+#[derive(Clone)]
 pub struct Node<'a> {
     pub chunk: &'a Chunk,
     pub index_path: IndexPath,
     pub voxel: Voxel,
+
+    parent_node: ArenaNodeIndice,
+    arena_node: Option<ArenaNodeIndice>, // Is null when it's a leaf node
 }
 
 impl<'a> Node<'a> {
     pub fn bounds(&self) -> Bounds {
         self.index_path.into()
     }
+    pub fn is_leaf(&self) -> bool {
+        self.arena_node.is_none()
+    }
+    pub fn child(&self, dir: Direction) -> Node {
+        if let Some(arena_node) = self.arena_node {
+            let node = self.chunk.arena.get_node(arena_node);
+            let mut result = Node {
+                chunk: self.chunk,
+                index_path: self.index_path.put(dir),
+                voxel: node.data[dir as usize],
+                parent_node: arena_node,
+                arena_node: None,
+            };
+            if let Some(child_node) = node.child_on_dir(dir) {
+                // The node is an actual node
+                result.arena_node = Some(child_node);
+                result
+            } else {
+                // The node is an leaf node
+                result
+            }
+        } else {
+            self.clone()
+        }
+    }
 }
 
 pub struct ChunkVoxelIterator<'a> {
     chunk: &'a Chunk,
-    stack: Vec<(u8, ArenaNodeIndice)>,
+    stack: Vec<(Direction, ArenaNodeIndice)>,
     dir: u8, // Next voxel to emit
 }
 
@@ -111,7 +140,7 @@ impl Chunk {
     pub fn iter_leaf(&self) -> ChunkVoxelIterator {
         ChunkVoxelIterator {
             chunk: &self,
-            stack: vec![(0, self.root_node)],
+            stack: vec![(0.into(), self.root_node)],
             dir: 0
         }
     }
@@ -132,7 +161,7 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                     // We've finished iterating all dirs on this node.
                     // Pop from stack, and continue from where we left off on the parent node
                     self.stack.pop();
-                    self.dir = fromdir + 1;
+                    self.dir = fromdir as u8 + 1;
                     continue;
                 }
 
@@ -141,7 +170,7 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
 
                 if let Some(subnode) = node.child_on_dir(self.dir.into()) {
                     // Has a child on that dir, needs to go deeper
-                    self.stack.push((self.dir, subnode));
+                    self.stack.push((self.dir.into(), subnode));
                     self.dir = 0;
                     continue;
                 } else {
@@ -156,6 +185,8 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                         chunk: self.chunk,
                         index_path,
                         voxel: node.data[dir as usize],
+                        parent_node: indice,
+                        arena_node: None, // leaf node iterator guarantees that all nodes emitted are leaf nodes
                     });
                 }
             } else {
@@ -229,24 +260,24 @@ mod tests {
     fn test_condense_on_set() {
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
-        for i in 0..8 {
-            let index = IndexPath::new(i.into()).push(Direction::FrontRightBottom);
+        for i in Direction::iter() {
+            let index = IndexPath::new(i).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
             assert_eq!(chunk.sample(IndexPath::new(i.into()).push(Direction::FrontRightBottom)), Voxel { data: 13 });
-            assert_eq!(chunk.arena.count_nodes(), if i == 7 { 1 } else { 2 });
+            assert_eq!(chunk.arena.count_nodes(), if i == Direction::RearRightTop { 1 } else { 2 });
         }
 
         // Test multiple levels
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
-        for i in 0..7 {
-            let index = IndexPath::new(i.into()).push(Direction::FrontRightBottom);
+        for i in Direction::iter().take(7) {
+            let index = IndexPath::new(i).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
-            assert_eq!(chunk.sample(IndexPath::new(i.into()).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(i).push(Direction::FrontRightBottom)), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 2);
         }
-        for i in 0..7 {
-            let index = IndexPath::new(i.into()).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
+        for i in Direction::iter().take(7) {
+            let index = IndexPath::new(i).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
             assert_eq!(chunk.sample(index), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 3);

@@ -54,8 +54,20 @@ impl IndexPath {
             IndexPath(NonZeroU64::new_unchecked((self.0.get() << 3) | (octant as u64)))
         }
     }
-    pub fn replace(&self, octant: u8) -> IndexPath {
-        assert!(octant < 8);
+    pub fn count(&self) -> u8 {
+        Self::MAX_SIZE - (self.0.get().leading_zeros() / 3) as u8
+    }
+    pub fn put(&self, octant: Direction) -> IndexPath {
+        assert!(!self.is_full(), "The index path is full");
+        let mut val = self.0.get();
+        let num_bits = 64 - val.leading_zeros() - 1;
+        val &= !(0b111 << num_bits); // clear those bits
+        val |= (octant as u64 | 0b1000) << num_bits; // Set back those bits
+        unsafe {
+            IndexPath(NonZeroU64::new_unchecked(val))
+        }
+    }
+    pub fn replace(&self, octant: Direction) -> IndexPath {
         unsafe {
             IndexPath(NonZeroU64::new_unchecked((self.0.get() & !0b111) | (octant as u64)))
         }
@@ -115,6 +127,15 @@ mod tests {
             index_path = index_path.push(i.into());
         }
         for i in (0..7).rev() {
+            let dir: Direction = i.into();
+            assert_eq!(index_path.next(), Some(dir));
+        }
+
+        let mut index_path = IndexPath::empty();
+        for i in 0..7 {
+            index_path = index_path.put(i.into());
+        }
+        for i in 0..7 {
             let dir: Direction = i.into();
             assert_eq!(index_path.next(), Some(dir));
         }
