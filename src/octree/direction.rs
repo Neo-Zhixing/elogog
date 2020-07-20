@@ -65,7 +65,7 @@ impl From<u8> for Direction {
     }
 }
 
-struct DirectionIterator {
+pub struct DirectionIterator {
     dir: u8
 }
 

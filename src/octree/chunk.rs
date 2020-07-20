@@ -2,6 +2,8 @@ use super::voxel::Voxel;
 use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use super::index_path::IndexPath;
 use super::direction::Direction;
+use super::bounds::Bounds;
+
 use std::ops::{Index, IndexMut};
 use crate::util::tuple_strip::IterUtil;
 use amethyst::ecs::{Component, DenseVecStorage};
@@ -87,6 +89,17 @@ impl Chunk {
     }
 }
 
+pub struct Node<'a> {
+    pub chunk: &'a Chunk,
+    pub index_path: IndexPath,
+    pub voxel: Voxel,
+}
+
+impl<'a> Node<'a> {
+    pub fn bounds(&self) -> Bounds {
+        self.index_path.into()
+    }
+}
 
 pub struct ChunkVoxelIterator<'a> {
     chunk: &'a Chunk,
@@ -105,19 +118,27 @@ impl Chunk {
 }
 
 impl<'a> Iterator for ChunkVoxelIterator<'a> {
-    type Item = (IndexPath, Voxel);
+    type Item = Node<'a>;
 
+    /// Iterates all leaf nodes.
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(tuple) = self.stack.last() {
+                // Peek the last node on the stack, which stores the indice to that arena node,
+                // as well as how we get to this node (from the parent node)
                 let (fromdir, indice) = *tuple;
+
                 if self.dir >= 8 {
-                    // Pop from stack
+                    // We've finished iterating all dirs on this node.
+                    // Pop from stack, and continue from where we left off on the parent node
                     self.stack.pop();
                     self.dir = fromdir + 1;
                     continue;
                 }
+
+                // Fetch the reference to that node
                 let node = self.chunk.arena.get_node(indice);
+
                 if let Some(subnode) = node.child_on_dir(self.dir.into()) {
                     // Has a child on that dir, needs to go deeper
                     self.stack.push((self.dir, subnode));
@@ -131,9 +152,14 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                     for (dir, _) in self.stack.iter().skip(1).rev() {
                         index_path = index_path.push((*dir).into());
                     }
-                    return Some((index_path, node.data[dir as usize]));
+                    return Some(Node {
+                        chunk: self.chunk,
+                        index_path,
+                        voxel: node.data[dir as usize],
+                    });
                 }
             } else {
+                // The stack is empty meaning that there is no more nodes.
                 return None;
             }
         }
@@ -247,16 +273,16 @@ mod tests {
         }
 
         let mut iter = chunk.iter_leaf();
-        for (i, (index_path, voxel)) in iter.enumerate() {
+        for (i, node) in iter.enumerate() {
             if i < 7 {
-                assert_eq!(voxel.data, i as u16);
-                assert_eq!(index_path, IndexPath::new((i as u8).into()));
+                assert_eq!(node.voxel.data, i as u16);
+                assert_eq!(node.index_path, IndexPath::new((i as u8).into()));
             } else if i < 14 {
-                assert_eq!(voxel.data, i as u16 + 9);
-                assert_eq!(index_path, IndexPath::new((i as u8 - 7).into()).push(Direction::RearRightTop));
+                assert_eq!(node.voxel.data, i as u16 + 9);
+                assert_eq!(node.index_path, IndexPath::new((i as u8 - 7).into()).push(Direction::RearRightTop));
             } else {
-                assert_eq!(voxel.data, i as u16 + 18);
-                assert_eq!(index_path, IndexPath::new((i as u8 - 14).into()).push(Direction::RearRightTop).push(Direction::RearRightTop));
+                assert_eq!(node.voxel.data, i as u16 + 18);
+                assert_eq!(node.index_path, IndexPath::new((i as u8 - 14).into()).push(Direction::RearRightTop).push(Direction::RearRightTop));
             }
         }
     }

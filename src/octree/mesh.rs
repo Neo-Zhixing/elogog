@@ -31,11 +31,12 @@ use amethyst::{
     winit::VirtualKeyCode,
 };
 use crate::octree::bounds::Bounds;
+use crate::octree::direction::Direction;
 
 pub fn gen_wireframe(chunk: &Chunk) -> DebugLinesComponent {
     let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
-    for (index_path, voxel) in chunk.iter_leaf() {
-        let bounds: Bounds = index_path.into();
+    for node in chunk.iter_leaf() {
+        let bounds: Bounds = node.bounds();
         let position = bounds.get_position();
         let width = bounds.get_width();
 
