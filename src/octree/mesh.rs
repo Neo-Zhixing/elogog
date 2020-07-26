@@ -78,7 +78,127 @@ pub fn gen_wireframe(chunk: &Chunk) -> DebugLinesComponent {
     debug_lines_component
 }
 
+trait Dimension {
+    type FaceEdges1: Dimension;
+    type FaceEdges2: Dimension;
+    const EDGE_PROC_DIR_GROUPS: [[Direction; 4]; 2];
+    const EDGE_PROC_DIR_TUPLES: [(usize, Direction); 8];
+    const FACE_PROC_DIR_GROUPS: [(Direction, Direction); 4];
+    const FACE_PROC_DIR_TUPLES: [(usize, Direction); 8];
+}
 
+struct X;
+struct Y;
+struct Z;
+
+impl Dimension for X {
+    type FaceEdges1 = X;
+    type FaceEdges2 = Y;
+    const EDGE_PROC_DIR_GROUPS: [[Direction; 4]; 2] = [
+        [Direction::RearLeftBottom, Direction::FrontLeftBottom, Direction::FrontLeftTop, Direction::RearLeftTop],
+        [Direction::RearRightBottom, Direction::FrontRightBottom, Direction::FrontRightTop, Direction::RearRightTop],
+    ];
+    const EDGE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (1, Direction::RearLeftTop),
+        (1, Direction::RearRightTop),
+        (0, Direction::FrontLeftTop),
+        (0, Direction::FrontRightTop),
+        (2, Direction::RearLeftBottom),
+        (2, Direction::RearRightBottom),
+        (3, Direction::FrontLeftBottom),
+        (3, Direction::FrontRightBottom),
+    ];
+    const FACE_PROC_DIR_GROUPS: [(Direction, Direction); 4] = [
+        (Direction::RearLeftBottom, Direction::FrontLeftBottom),
+        (Direction::RearRightBottom, Direction::FrontRightBottom),
+        (Direction::RearLeftTop, Direction::FrontRightTop),
+        (Direction::RearRightTop, Direction::FrontRightTop),
+    ];
+    const FACE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (1, Direction::RearLeftBottom),
+        (1, Direction::RearRightBottom),
+        (0, Direction::FrontLeftBottom),
+        (0, Direction::FrontRightBottom),
+        (1, Direction::RearLeftTop),
+        (1, Direction::RearRightTop),
+        (0, Direction::FrontLeftTop),
+        (0, Direction::FrontRightTop),
+    ];
+}
+
+impl Dimension for Y {
+    type FaceEdges1 = Z;
+    type FaceEdges2 = Y;
+    const EDGE_PROC_DIR_GROUPS: [[Direction; 4]; 2] = [
+        [Direction::RearLeftBottom, Direction::RearRightBottom, Direction::FrontRightBottom, Direction::FrontLeftBottom],
+        [Direction::RearLeftTop, Direction::RearRightTop, Direction::FrontRightTop, Direction::FrontLeftTop],
+    ];
+    const EDGE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (3, Direction::RearRightBottom),
+        (2, Direction::RearLeftBottom),
+        (0, Direction::FrontRightBottom),
+        (1, Direction::FrontLeftBottom),
+        (3, Direction::RearRightTop),
+        (2, Direction::RearLeftTop),
+        (0, Direction::FrontRightTop),
+        (1, Direction::FrontLeftTop),
+    ];
+
+    const FACE_PROC_DIR_GROUPS: [(Direction, Direction); 4] = [
+        (Direction::RearLeftBottom, Direction::RearRightBottom),
+        (Direction::FrontLeftBottom, Direction::FrontRightBottom),
+        (Direction::RearLeftTop, Direction::RearRightTop),
+        (Direction::FrontLeftTop, Direction::FrontRightTop),
+    ];
+
+    const FACE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (0, Direction::FrontRightBottom),
+        (1, Direction::FrontLeftBottom),
+        (0, Direction::RearRightBottom),
+        (1, Direction::RearLeftBottom),
+        (0, Direction::FrontRightTop),
+        (1, Direction::FrontLeftTop),
+        (0, Direction::RearRightTop),
+        (1, Direction::RearLeftTop),
+    ];
+}
+
+impl Dimension for Z {
+    type FaceEdges1 = X;
+    type FaceEdges2 = Z;
+    const EDGE_PROC_DIR_GROUPS: [[Direction; 4]; 2] = [
+        [Direction::FrontLeftTop, Direction::FrontRightTop, Direction::FrontRightBottom, Direction::FrontLeftBottom],
+        [Direction::RearLeftTop, Direction::RearRightTop, Direction::RearRightBottom, Direction::RearLeftBottom],
+    ];
+    const EDGE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (3, Direction::FrontRightTop),
+        (2, Direction::FrontLeftTop),
+        (3, Direction::RearRightTop),
+        (2, Direction::RearLeftTop),
+        (0, Direction::FrontRightBottom),
+        (1, Direction::FrontLeftBottom),
+        (0, Direction::RearRightBottom),
+        (1, Direction::RearLeftBottom),
+    ];
+
+    const FACE_PROC_DIR_GROUPS: [(Direction, Direction); 4] =[
+        (Direction::RearLeftTop, Direction::RearLeftBottom),
+        (Direction::RearRightTop, Direction::RearRightBottom),
+        (Direction::FrontLeftTop, Direction::FrontLeftBottom),
+        (Direction::FrontRightTop, Direction::FrontRightBottom),
+    ];
+
+    const FACE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
+        (1, Direction::FrontLeftTop),
+        (1, Direction::FrontRightTop),
+        (1, Direction::RearLeftTop),
+        (1, Direction::RearRightTop),
+        (0, Direction::FrontLeftBottom),
+        (0, Direction::FrontRightBottom),
+        (0, Direction::RearLeftBottom),
+        (0, Direction::RearRightBottom),
+    ];
+}
 
 struct MeshGenerator<'a> {
     chunk: &'a Chunk,
@@ -96,6 +216,7 @@ impl<'a> MeshGenerator<'a> {
         let root = self.chunk.root();
         self.node_proc(&root);
     }
+
     fn node_proc(&mut self, node: &Node) {
         if node.is_leaf() {
             return;
@@ -107,321 +228,77 @@ impl<'a> MeshGenerator<'a> {
             self.node_proc(child);
         }
 
-        for (dir1, dir2) in [
-            (Direction::RearLeftBottom, Direction::FrontLeftBottom),
-            (Direction::RearRightBottom, Direction::FrontRightBottom),
-            (Direction::RearLeftTop, Direction::FrontRightTop),
-            (Direction::RearRightTop, Direction::FrontRightTop),
-        ].iter() {
-            self.face_proc_xy([
+        self.face_proc_children::<X>(&children);
+        self.face_proc_children::<Y>(&children);
+        self.face_proc_children::<Z>(&children);
+
+        self.edge_proc_children::<X>(&children);
+        self.edge_proc_children::<Y>(&children);
+        self.edge_proc_children::<Z>(&children);
+
+        self.vert_proc(children.data);
+    }
+    fn face_proc_children<T: Dimension>(&mut self, children: &DirectionMapper<Node>) {
+        for (dir1, dir2) in T::FACE_PROC_DIR_GROUPS.iter() {
+            self.face_proc::<T>([
                 &children[*dir1],
                 &children[*dir2]
             ]);
         }
+    }
+    fn face_proc<T: Dimension>(&mut self, nodes: [&Node; 2]) {
+        if nodes.iter().all(|n| n.is_leaf()) {
+            return;
+        }
+        let tuples = T::FACE_PROC_DIR_TUPLES;
+        let children = DirectionMapper::new([
+            nodes[tuples[0].0].child(tuples[0].1, self.chunk),
+            nodes[tuples[1].0].child(tuples[1].1, self.chunk),
+            nodes[tuples[2].0].child(tuples[2].1, self.chunk),
+            nodes[tuples[3].0].child(tuples[3].1, self.chunk),
+            nodes[tuples[4].0].child(tuples[4].1, self.chunk),
+            nodes[tuples[5].0].child(tuples[5].1, self.chunk),
+            nodes[tuples[6].0].child(tuples[6].1, self.chunk),
+            nodes[tuples[7].0].child(tuples[7].1, self.chunk),
+        ]);
 
-        for (dir1, dir2) in [
-            (Direction::RearLeftBottom, Direction::RearRightBottom),
-            (Direction::FrontLeftBottom, Direction::FrontRightBottom),
-            (Direction::RearLeftTop, Direction::RearRightTop),
-            (Direction::FrontLeftTop, Direction::FrontRightTop),
-        ].iter() {
-            self.face_proc_zy([
-                &children[*dir1],
-                &children[*dir2]
+        self.face_proc_children::<T>(&children);
+        self.edge_proc_children::<T::FaceEdges1>(&children);
+        self.edge_proc_children::<T::FaceEdges2>(&children);
+        self.vert_proc(children.data);
+    }
+    fn edge_proc_children<T>(&mut self, children: &DirectionMapper<Node>)
+        where T: Dimension {
+        let dir_groups = T::EDGE_PROC_DIR_GROUPS;
+
+        for group in dir_groups.iter() {
+            self.edge_proc::<T>([
+                &children[group[0]],
+                &children[group[1]],
+                &children[group[2]],
+                &children[group[3]],
             ]);
         }
-
-        for (dir1, dir2) in [
-            (Direction::RearLeftTop, Direction::RearLeftBottom),
-            (Direction::RearRightTop, Direction::RearRightBottom),
-            (Direction::FrontLeftTop, Direction::FrontLeftBottom),
-            (Direction::FrontRightTop, Direction::FrontRightBottom),
-        ].iter() {
-            self.face_proc_xz([
-                &children[*dir1],
-                &children[*dir2]
-            ]);
-        }
-
-        self.edge_proc_x([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::FrontLeftBottom],
-            &children[Direction::FrontLeftTop],
-            &children[Direction::RearLeftTop],
-        ]);
-        self.edge_proc_x([
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontRightTop],
-            &children[Direction::RearRightTop],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontLeftTop],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::FrontLeftTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::RearRightBottom],
-            &children[Direction::RearLeftBottom],
-        ]);
-
-        self.vert_proc(children.data);
     }
-    fn face_proc_xy(&mut self, nodes: [&Node; 2]) {
+    fn edge_proc<T>(&mut self, nodes: [&Node; 4])
+        where T: Dimension {
         if nodes.iter().all(|n| n.is_leaf()) {
             return;
         }
-        let children = DirectionMapper::new([
-            nodes[1].child(Direction::RearLeftBottom, self.chunk),
-            nodes[1].child(Direction::RearRightBottom, self.chunk),
-            nodes[0].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[0].child(Direction::FrontRightBottom, self.chunk),
-            nodes[1].child(Direction::RearLeftTop, self.chunk),
-            nodes[1].child(Direction::RearRightTop, self.chunk),
-            nodes[0].child(Direction::FrontLeftTop, self.chunk),
-            nodes[0].child(Direction::FrontRightTop, self.chunk),
-        ]);
 
-        for (dir1, dir2) in [
-            (Direction::RearLeftBottom, Direction::FrontLeftBottom),
-            (Direction::RearRightBottom, Direction::FrontRightBottom),
-            (Direction::RearLeftTop, Direction::FrontRightTop),
-            (Direction::RearRightTop, Direction::FrontRightTop),
-        ].iter() {
-            self.face_proc_xy([
-                &children[*dir1],
-                &children[*dir2]
-            ]);
-        }
+        let t = T::EDGE_PROC_DIR_TUPLES;
 
-        self.edge_proc_x([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::FrontLeftBottom],
-            &children[Direction::FrontLeftTop],
-            &children[Direction::RearLeftTop],
-        ]);
-        self.edge_proc_x([
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontRightTop],
-            &children[Direction::RearRightTop],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontLeftTop],
-        ]);
-        self.vert_proc(children.data);
-    }
-    fn face_proc_zy(&mut self, nodes: [&Node; 2]) {
-        if nodes.iter().all(|n| n.is_leaf()) {
-            return;
-        }
         let children = DirectionMapper::new([
-            nodes[0].child(Direction::FrontRightBottom, self.chunk),
-            nodes[1].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[0].child(Direction::RearRightBottom, self.chunk),
-            nodes[1].child(Direction::RearLeftBottom, self.chunk),
-            nodes[0].child(Direction::FrontRightTop, self.chunk),
-            nodes[1].child(Direction::FrontLeftTop, self.chunk),
-            nodes[0].child(Direction::RearRightTop, self.chunk),
-            nodes[1].child(Direction::RearLeftTop, self.chunk),
+            nodes[t[0].0].child(t[0].1, self.chunk),
+            nodes[t[1].0].child(t[1].1, self.chunk),
+            nodes[t[2].0].child(t[2].1, self.chunk),
+            nodes[t[3].0].child(t[3].1, self.chunk),
+            nodes[t[4].0].child(t[4].1, self.chunk),
+            nodes[t[5].0].child(t[5].1, self.chunk),
+            nodes[t[6].0].child(t[6].1, self.chunk),
+            nodes[t[7].0].child(t[7].1, self.chunk),
         ]);
-
-        for (dir1, dir2) in [
-            (Direction::RearLeftBottom, Direction::RearRightBottom),
-            (Direction::FrontLeftBottom, Direction::FrontRightBottom),
-            (Direction::RearLeftTop, Direction::RearRightTop),
-            (Direction::FrontLeftTop, Direction::FrontRightTop),
-        ].iter() {
-            self.face_proc_zy([
-                &children[*dir1],
-                &children[*dir2]
-            ]);
-        }
-        self.edge_proc_z([
-            &children[Direction::FrontLeftTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::RearRightBottom],
-            &children[Direction::RearLeftBottom],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontLeftTop],
-        ]);
-        self.vert_proc(children.data);
-    }
-    fn face_proc_xz(&mut self, nodes: [&Node; 2]) {
-        if nodes.iter().all(|n| n.is_leaf()) {
-            return;
-        }
-        let children = DirectionMapper::new([
-            nodes[1].child(Direction::FrontLeftTop, self.chunk),
-            nodes[1].child(Direction::FrontRightTop, self.chunk),
-            nodes[1].child(Direction::RearLeftTop, self.chunk),
-            nodes[1].child(Direction::RearRightTop, self.chunk),
-            nodes[0].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[0].child(Direction::FrontRightBottom, self.chunk),
-            nodes[0].child(Direction::RearLeftBottom, self.chunk),
-            nodes[0].child(Direction::RearRightBottom, self.chunk),
-        ]);
-
-        for (dir1, dir2) in [
-            (Direction::RearLeftTop, Direction::RearLeftBottom),
-            (Direction::RearRightTop, Direction::RearRightBottom),
-            (Direction::FrontLeftTop, Direction::FrontLeftBottom),
-            (Direction::FrontRightTop, Direction::FrontRightBottom),
-        ].iter() {
-            self.face_proc_xz([
-                &children[*dir1],
-                &children[*dir2]
-            ]);
-        }
-        self.edge_proc_x([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::FrontLeftBottom],
-            &children[Direction::FrontLeftTop],
-            &children[Direction::RearLeftTop],
-        ]);
-        self.edge_proc_x([
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontRightTop],
-            &children[Direction::RearRightTop],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::FrontLeftTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::RearRightBottom],
-            &children[Direction::RearLeftBottom],
-        ]);
-        self.vert_proc(children.data);
-    }
-    fn edge_proc_x(&mut self, nodes: [&Node; 4]) {
-        if nodes.iter().all(|n| n.is_leaf()) {
-            return;
-        }
-        let children = DirectionMapper::new([
-            nodes[1].child(Direction::RearLeftTop, self.chunk),
-            nodes[1].child(Direction::RearRightTop, self.chunk),
-            nodes[0].child(Direction::FrontLeftTop, self.chunk),
-            nodes[0].child(Direction::FrontRightTop, self.chunk),
-            nodes[2].child(Direction::RearLeftBottom, self.chunk),
-            nodes[2].child(Direction::RearRightBottom, self.chunk),
-            nodes[3].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[3].child(Direction::FrontRightBottom, self.chunk),
-        ]);
-        self.edge_proc_x([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::FrontLeftBottom],
-            &children[Direction::FrontLeftTop],
-            &children[Direction::RearLeftTop],
-        ]);
-        self.edge_proc_x([
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontRightTop],
-            &children[Direction::RearRightTop],
-        ]);
-        self.vert_proc(children.data);
-    }
-    fn edge_proc_y(&mut self, nodes: [&Node; 4]) {
-        if nodes.iter().all(|n| n.is_leaf()) {
-            return;
-        }
-        let children = DirectionMapper::new([
-            nodes[3].child(Direction::RearRightBottom, self.chunk),
-            nodes[2].child(Direction::RearLeftBottom, self.chunk),
-            nodes[0].child(Direction::FrontRightBottom, self.chunk),
-            nodes[1].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[3].child(Direction::RearRightTop, self.chunk),
-            nodes[2].child(Direction::RearLeftTop, self.chunk),
-            nodes[0].child(Direction::FrontRightTop, self.chunk),
-            nodes[1].child(Direction::FrontLeftTop, self.chunk),
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftBottom],
-            &children[Direction::RearRightBottom],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_y([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontLeftTop],
-        ]);
-        self.vert_proc(children.data);
-    }
-    fn edge_proc_z(&mut self, nodes: [&Node; 4]) {
-        if nodes.iter().all(|n| n.is_leaf()) {
-            return;
-        }
-        let children = DirectionMapper::new([
-            nodes[3].child(Direction::FrontRightTop, self.chunk),
-            nodes[2].child(Direction::FrontLeftTop, self.chunk),
-            nodes[3].child(Direction::RearRightTop, self.chunk),
-            nodes[2].child(Direction::RearLeftTop, self.chunk),
-            nodes[0].child(Direction::FrontRightBottom, self.chunk),
-            nodes[1].child(Direction::FrontLeftBottom, self.chunk),
-            nodes[0].child(Direction::RearRightBottom, self.chunk),
-            nodes[1].child(Direction::RearLeftBottom, self.chunk),
-        ]);
-        self.edge_proc_z([
-            &children[Direction::FrontLeftTop],
-            &children[Direction::FrontRightTop],
-            &children[Direction::FrontRightBottom],
-            &children[Direction::FrontLeftBottom],
-        ]);
-        self.edge_proc_z([
-            &children[Direction::RearLeftTop],
-            &children[Direction::RearRightTop],
-            &children[Direction::RearRightBottom],
-            &children[Direction::RearLeftBottom],
-        ]);
-
+        self.edge_proc_children::<T>(&children);
         self.vert_proc(children.data);
     }
     fn vert_proc(&mut self, mut nodes: [Node; 8]) {
