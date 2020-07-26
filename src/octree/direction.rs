@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Direction {
@@ -42,9 +44,28 @@ impl Direction {
         *self as u8 & 0b100 == 0
     }
 
+    #[inline]
+    pub fn opposite(&self) -> Self {
+        Direction::from(7 - *self as u8)
+    }
 
-    pub fn iter() -> DirectionIterator {
-      DirectionIterator { dir: 0 }
+    pub fn all() -> DirectionMapper<Direction> {
+        Self::map(|a| a)
+    }
+
+    pub fn map<T, F>(f: F) -> DirectionMapper<T>
+        where
+          F: Fn(Self) -> T {
+        DirectionMapper::new([
+            f(Self::FrontLeftBottom),
+            f(Self::FrontRightBottom),
+            f(Self::RearLeftBottom),
+            f(Self::RearRightBottom),
+            f(Self::FrontLeftTop),
+            f(Self::FrontRightTop),
+            f(Self::RearLeftTop),
+            f(Self::RearRightTop),
+        ])
     }
 }
 
@@ -65,25 +86,33 @@ impl From<u8> for Direction {
     }
 }
 
-pub struct DirectionIterator {
-    dir: u8
+#[derive(Clone, Default)]
+pub struct DirectionMapper<T> {
+    pub data: [T; 8]
 }
 
-impl Iterator for DirectionIterator {
-    type Item = Direction;
+impl<T> DirectionMapper<T> {
+    pub fn iter(&self) -> std::slice::Iter<T> {
+        self.data.iter()
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.dir >= 8 {
-            return None;
-        }
-        let dir = self.dir;
-        self.dir += 1;
-        Some(dir.into())
+    pub fn new(data: [T; 8]) -> Self {
+        DirectionMapper { data }
     }
 }
 
-impl ExactSizeIterator for DirectionIterator {
-    fn len(&self) -> usize {
-        8
+impl<T> Index<Direction> for DirectionMapper<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Direction) -> &Self::Output {
+        &self.data[index as usize]
+    }
+}
+
+impl<T> IndexMut<Direction> for DirectionMapper<T> {
+    #[inline]
+    fn index_mut(&mut self, index: Direction) -> &mut Self::Output {
+        &mut self.data[index as usize]
     }
 }

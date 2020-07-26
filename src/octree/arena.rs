@@ -2,6 +2,7 @@ use super::voxel::Voxel;
 use super::direction::Direction;
 use std::ops::{Index, IndexMut};
 use std::fmt::Write;
+use crate::octree::direction::DirectionMapper;
 
 // Locate a node block inside a segment
 type ArenaSegmentIndice = u8;
@@ -37,7 +38,7 @@ pub struct ArenaNode {
     children_index_indice: u8,
     pub(super) leaf_mask: u8, // 1 for child, 0 for leaf
     load_mask: u8,
-    pub(super) data: [Voxel; 8],
+    pub(super) data: DirectionMapper<Voxel>,
 }
 
 impl ArenaNode {
@@ -74,7 +75,7 @@ impl ArenaNode {
     }
     #[inline]
     pub fn set_on_dir(&mut self, dir: Direction, voxel: Voxel) {
-        self.data[dir as usize] = voxel;
+        self.data[dir] = voxel;
     }
 
     #[inline]
@@ -85,15 +86,16 @@ impl ArenaNode {
         if !self.is_leaf_node() {
             return false;
         }
-        let com = self.data[0];
+        // Check if all subnodes are same. Select an arbitrary node and compare all others with it.
+        let com = self.data[Direction::FrontLeftBottom];
         self.data.iter().all(|x| *x == com)
     }
 
     fn print_node(&self, f: &mut std::fmt::Formatter<'_>, dir: Direction) -> Result<(), std::fmt::Error> {
         if self.has_child_on_dir(dir) {
-            write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir as usize])?;
+            write!(f, "\x1b[0;31m{:?}\x1b[0m", self.data[dir])?;
         } else {
-            std::fmt::Debug::fmt(&self.data[dir as usize], f)?;
+            std::fmt::Debug::fmt(&self.data[dir], f)?;
         }
         Ok(())
     }
@@ -213,7 +215,7 @@ impl ArenaSegment {
 
             // Initialize variables
             for node in self[next_available].iter_mut() {
-                node.data = [Voxel::default(); 8];
+                node.data = DirectionMapper::new([Voxel::default(); 8]);
                 node.leaf_mask = 0;
                 node.load_mask = 0;
             }

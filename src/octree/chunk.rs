@@ -1,4 +1,5 @@
 use super::voxel::Voxel;
+use super::node::Node;
 use super::arena::{Arena, ArenaNodeIndice, ArenaNode};
 use super::index_path::IndexPath;
 use super::direction::Direction;
@@ -7,9 +8,10 @@ use super::bounds::Bounds;
 use std::ops::{Index, IndexMut};
 use crate::util::tuple_strip::IterUtil;
 use amethyst::ecs::{Component, DenseVecStorage};
+use std::iter::FromIterator;
 
 pub struct Chunk {
-    arena: Arena,
+    pub(super) arena: Arena,
     root_node: ArenaNodeIndice,
 }
 
@@ -20,6 +22,14 @@ impl Chunk {
         Chunk {
             arena,
             root_node,
+        }
+    }
+    pub fn root(&self) -> Node {
+        Node {
+            index_path: IndexPath::empty(),
+            voxel: Voxel::raw(0), // TODO calc average of root node
+            parent_node: None,
+            arena_node: Some(self.root_node),
         }
     }
     pub fn set(&mut self, path: IndexPath, voxel: Voxel) {
@@ -44,7 +54,7 @@ impl Chunk {
                     if !current_node.is_condensable() {
                         return;
                     }
-                    let voxel = current_node.data[0];
+                    let voxel = current_node.data[Direction::FrontRightBottom]; // TODO: calc avg voxel to set on parent
                     let dir = *dir;
                     let parent_node = self.arena.get_node_mut(*parent_index);
                     parent_node.set_on_dir(dir, voxel);
@@ -77,55 +87,14 @@ impl Chunk {
             let node = self.arena.get_node(node_index);
             if current.is_empty() { // If this is the final path ||
                 // Get the leaf
-                return node.data[dir as usize];
+                return node.data[dir];
             } else if let Some(child) = self.arena.get_node(node_index).child_on_dir(dir) {
                 // If there is already a child there
                 node_index = child;
                 continue;
             } else {
-                return node.data[dir as usize];
+                return node.data[dir];
             }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Node<'a> {
-    pub chunk: &'a Chunk,
-    pub index_path: IndexPath,
-    pub voxel: Voxel,
-
-    parent_node: ArenaNodeIndice,
-    arena_node: Option<ArenaNodeIndice>, // Is null when it's a leaf node
-}
-
-impl<'a> Node<'a> {
-    pub fn bounds(&self) -> Bounds {
-        self.index_path.into()
-    }
-    pub fn is_leaf(&self) -> bool {
-        self.arena_node.is_none()
-    }
-    pub fn child(&self, dir: Direction) -> Node {
-        if let Some(arena_node) = self.arena_node {
-            let node = self.chunk.arena.get_node(arena_node);
-            let mut result = Node {
-                chunk: self.chunk,
-                index_path: self.index_path.put(dir),
-                voxel: node.data[dir as usize],
-                parent_node: arena_node,
-                arena_node: None,
-            };
-            if let Some(child_node) = node.child_on_dir(dir) {
-                // The node is an actual node
-                result.arena_node = Some(child_node);
-                result
-            } else {
-                // The node is an leaf node
-                result
-            }
-        } else {
-            self.clone()
         }
     }
 }
@@ -147,7 +116,7 @@ impl Chunk {
 }
 
 impl<'a> Iterator for ChunkVoxelIterator<'a> {
-    type Item = Node<'a>;
+    type Item = Node;
 
     /// Iterates all leaf nodes.
     fn next(&mut self) -> Option<Self::Item> {
@@ -182,10 +151,9 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                         index_path = index_path.push((*dir).into());
                     }
                     return Some(Node {
-                        chunk: self.chunk,
                         index_path,
-                        voxel: node.data[dir as usize],
-                        parent_node: indice,
+                        voxel: node.data[dir.into()],
+                        parent_node: Some(indice),
                         arena_node: None, // leaf node iterator guarantees that all nodes emitted are leaf nodes
                     });
                 }
@@ -260,24 +228,24 @@ mod tests {
     fn test_condense_on_set() {
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
-        for i in Direction::iter() {
-            let index = IndexPath::new(i).push(Direction::FrontRightBottom);
+        for i in Direction::all().iter() {
+            let index = IndexPath::new(*i).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
-            assert_eq!(chunk.sample(IndexPath::new(i.into()).push(Direction::FrontRightBottom)), Voxel { data: 13 });
-            assert_eq!(chunk.arena.count_nodes(), if i == Direction::RearRightTop { 1 } else { 2 });
+            assert_eq!(chunk.sample(IndexPath::new(*i).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+            assert_eq!(chunk.arena.count_nodes(), if *i == Direction::RearRightTop { 1 } else { 2 });
         }
 
         // Test multiple levels
         let mut chunk = Chunk::new();
         assert_eq!(chunk.arena.count_nodes(), 1);
-        for i in Direction::iter().take(7) {
-            let index = IndexPath::new(i).push(Direction::FrontRightBottom);
+        for i in Direction::all().iter().take(7) {
+            let index = IndexPath::new(*i).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
-            assert_eq!(chunk.sample(IndexPath::new(i).push(Direction::FrontRightBottom)), Voxel { data: 13 });
+            assert_eq!(chunk.sample(IndexPath::new(*i).push(Direction::FrontRightBottom)), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 2);
         }
-        for i in Direction::iter().take(7) {
-            let index = IndexPath::new(i).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
+        for i in Direction::all().iter().take(7) {
+            let index = IndexPath::new(*i).push(Direction::RearRightTop).push(Direction::FrontRightBottom);
             chunk.set(index, Voxel { data: 13 });
             assert_eq!(chunk.sample(index), Voxel { data: 13 });
             assert_eq!(chunk.arena.count_nodes(), 3);

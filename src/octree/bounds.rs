@@ -29,6 +29,10 @@ impl Bounds {
     pub fn get_width(&self) -> f32 {
         self.width as f32 / Self::MAX_WIDTH as f32
     }
+    pub fn center(&self) -> math::Point3<f32> {
+        let half_width = self.get_width() / 2.0;
+        self.get_position() + math::Vector3::new(half_width, half_width, half_width)
+    }
 }
 
 
