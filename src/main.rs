@@ -1,5 +1,6 @@
 #![feature(leading_trailing_ones)]
 #![feature(alloc_layout_extra)]
+#![feature(const_generics)]
 
 mod util;
 mod octree;
@@ -31,7 +32,7 @@ use amethyst::{
         mtl::{Material, MaterialDefaults},
 
         rendy::{
-            mesh::{Normal, Position, Tangent, TexCoord},
+            mesh::{Normal, Position, Tangent, TexCoord, MeshBuilder},
             texture::palette::load_from_linear_rgba,
         }
     },
@@ -41,7 +42,7 @@ use amethyst::{
 };
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
-use crate::octree::mesh::gen_wireframe;
+use crate::octree::mesh::{gen_wireframe, MeshGenerator};
 use crate::octree::chunk::Chunk;
 use crate::octree::index_path::IndexPath;
 use crate::octree::voxel::Voxel;
@@ -73,16 +74,17 @@ impl SimpleState for GameState {
             .build();
 
         let mut chunk = Chunk::new();
-        chunk.set(IndexPath::new(Direction::RearRightTop).push(Direction::RearRightTop), Voxel::raw(12));
+        chunk.set(IndexPath::new(Direction::RearRightTop), Voxel::raw(12));
 
-        chunk.set(IndexPath::new(Direction::RearRightTop).push(Direction::FrontRightTop).push(Direction::RearRightTop), Voxel::raw(12));
+        let mut mesh_generator = MeshGenerator::new(&chunk);
+        mesh_generator.create_dualgrid();
+        let wireframe = gen_wireframe(&mesh_generator);
 
         // Getting us a ball
-        /*
         let mesh = data.world
             .exec(|loader: AssetLoaderSystemData<'_, Mesh>| {
                 loader.load_from_data(
-                    gen(&chunk).into(),
+                    mesh_generator.into_mesh_builder().into(),
                     (),
                 )
             });
@@ -108,13 +110,12 @@ impl SimpleState for GameState {
             });
         let mut pos = Transform::default();
         pos.set_translation_xyz(0.0, 0.0, 0.0);
-        */
         data.world
             .create_entity()
-            //.with(pos)
-            //.with(mesh)
-            //.with(material)
-            .with(gen_wireframe(&chunk))
+            .with(pos)
+            .with(mesh)
+            .with(material)
+            .with(wireframe)
             .build();
 
         // Creating light source

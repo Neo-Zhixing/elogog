@@ -11,6 +11,10 @@ impl Voxel {
             data,
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.data == 0
+    }
 }
 impl std::fmt::Debug for Voxel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
