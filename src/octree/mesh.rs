@@ -35,46 +35,6 @@ use amethyst::{
 use crate::octree::bounds::Bounds;
 use crate::octree::direction::{Direction, DirectionMapper, Edge};
 
-pub fn gen_wireframe(mesh_generator: &MeshGenerator) -> (DebugLinesComponent) {
-    let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
-    for node in mesh_generator.chunk.iter_leaf() {
-        let bounds: Bounds = node.bounds();
-        let position = bounds.get_position();
-        let width = bounds.get_width();
-
-        for i in 0..3 {
-            let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
-            dir[i] = width;
-            debug_lines_component.add_direction(
-                position,
-                dir.into(),
-                Srgba::new(1.0, 0.5, 0.23, 1.0),
-            );
-        }
-    }
-
-    for cell in &mesh_generator.dual_cells {
-        let origin = cell[Direction::RearRightTop].bounds().center();
-        debug_lines_component.add_line(
-            origin,
-            cell[Direction::FrontRightTop].bounds().center(),
-            Srgba::new(1.0, 0.2, 1.0, 1.8),
-        );
-        debug_lines_component.add_line(
-            origin,
-            cell[Direction::RearRightBottom].bounds().center(),
-            Srgba::new(1.0, 0.2, 1.0, 1.8),
-        );
-        debug_lines_component.add_line(
-            origin,
-            cell[Direction::RearLeftTop].bounds().center(),
-            Srgba::new(1.0, 0.2, 1.0, 1.8),
-        );
-    }
-
-    debug_lines_component
-}
-
 trait Dimension {
     type FaceEdges1: Dimension;
     type FaceEdges2: Dimension;
@@ -621,9 +581,9 @@ impl<'a> MeshGenerator<'a> {
     fn add_triangle(&mut self, edges: [Edge; 3], nodes: &DirectionMapper<Node>) {
         for edge in edges.iter() {
             let (v1, v2) = edge.vertices();
-            let node1 = nodes[v1].bounds().center();
-            let node2 = nodes[v2].bounds().center();
-            let pos: Vector3<f32> = (node1.coords + node2.coords) / 2.0;
+            let node1 = nodes[v1].bounds.center();
+            let node2 = nodes[v2].bounds.center();
+            let pos: Vector3<f32> = (node1.coords + node2.coords) * (self.chunk.size * 0.5);
             self.vertices.push(pos.into());
             self.texcoords.push(TexCoord([0.0, 0.0]));
             self.normal.push(Normal([0.0, 0.0, 0.0]));
@@ -639,5 +599,38 @@ impl<'a> MeshGenerator<'a> {
             .with_vertices(self.normal)
             .with_vertices(self.texcoords)
             .with_indices(Indices::U16(self.indices.into()))
+    }
+
+
+    pub fn gen_wireframe(&self) -> DebugLinesComponent {
+        let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
+        for node in self.chunk.iter_leaf() {
+            let bounds: Bounds = node.bounds;
+            let position = bounds.get_position() * self.chunk.size;
+            let width = bounds.get_width() * self.chunk.size;
+
+            for i in 0..3 {
+                let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
+                dir[i] = width;
+                debug_lines_component.add_direction(
+                    position,
+                    dir.into(),
+                    Srgba::new(1.0, 0.5, 0.23, 1.0),
+                );
+            }
+        }
+
+        for cell in &self.dual_cells {
+            let origin = cell[Direction::RearRightTop].bounds.center() * self.chunk.size;
+            for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
+                debug_lines_component.add_line(
+                    origin,
+                    cell[*dir].bounds.center() * self.chunk.size,
+                    Srgba::new(1.0, 0.2, 1.0, 1.8),
+                );
+            }
+        }
+
+        debug_lines_component
     }
 }

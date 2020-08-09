@@ -67,6 +67,23 @@ impl IndexPath {
             IndexPath(NonZeroU64::new_unchecked(val))
         }
     }
+    pub fn get(&self) -> Direction {
+        assert!(!self.is_empty());
+        let val = self.0.get();
+        let num_bits = 64 - val.leading_zeros() - 4;
+        let dir_bin: u8 = (val >> num_bits) & 0b111 as u8;
+        dir_bin.into()
+    }
+    pub fn del(&self) -> IndexPath {
+        assert!(!self.is_empty());
+        let val = self.0.get();
+        let num_bits = 64 - val.leading_zeros() - 1;
+        let dir_bin: u64 = (self.0.get() & !(std::u64::MAX << num_bits));
+        let dir_bin = dir_bin | (1 << num_bits);
+        unsafe {
+            IndexPath(NonZeroU64::new_unchecked(dir_bin))
+        }
+    }
     pub fn replace(&self, octant: Direction) -> IndexPath {
         unsafe {
             IndexPath(NonZeroU64::new_unchecked((self.0.get() & !0b111) | (octant as u64)))

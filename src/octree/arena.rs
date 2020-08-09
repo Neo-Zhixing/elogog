@@ -340,6 +340,18 @@ impl Arena {
         }
     }
 
+    // Split the parent node on the specified octant
+    pub fn realloc_add(&mut self, parent: ArenaNodeIndice, dir: Direction) {
+        let old_leafmask = self.get_node(parent).leaf_mask;
+        self.realloc(parent, old_freemask | (1 << (dir as u8)));
+    }
+
+    // Merge the parent node on the specified octant
+    pub fn realloc_del(&mut self, parent: ArenaNodeIndice, dir: Direction) {
+        let old_leafmask = self.get_node(parent).leaf_mask;
+        self.realloc(parent, old_freemask | old_mask & !(1 << (dir as u8)));
+    }
+
     pub fn realloc(&mut self, indice: ArenaNodeIndice, freemask: u8) {
         if freemask == 0 {
             // Free everything. And skip the trouble of copying, etc.

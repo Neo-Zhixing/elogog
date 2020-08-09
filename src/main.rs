@@ -4,6 +4,7 @@
 
 mod util;
 mod octree;
+mod worldgen;
 
 use amethyst::{
     controls::{FlyControlBundle, FlyControlTag},
@@ -42,7 +43,7 @@ use amethyst::{
 };
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
-use crate::octree::mesh::{gen_wireframe, MeshGenerator};
+use crate::octree::mesh::MeshGenerator;
 use crate::octree::chunk::Chunk;
 use crate::octree::index_path::IndexPath;
 use crate::octree::voxel::Voxel;
@@ -73,12 +74,12 @@ impl SimpleState for GameState {
             .with(local_transform)
             .build();
 
-        let mut chunk = Chunk::new();
+        let mut chunk = Chunk::new(8.0);
         chunk.set(IndexPath::new(Direction::RearRightTop), Voxel::raw(12));
 
         let mut mesh_generator = MeshGenerator::new(&chunk);
         mesh_generator.create_dualgrid();
-        let wireframe = gen_wireframe(&mesh_generator);
+        let wireframe = mesh_generator.gen_wireframe();
 
         // Getting us a ball
         let mesh = data.world

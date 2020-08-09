@@ -1,7 +1,8 @@
 use amethyst::core::math;
 use super::index_path::IndexPath;
+use super::direction::Direction;
 
-
+#[derive(Clone)]
 pub struct Bounds {
     x: u32,
     y: u32,
@@ -33,6 +34,21 @@ impl Bounds {
         let half_width = self.get_width() / 2.0;
         self.get_position() + math::Vector3::new(half_width, half_width, half_width)
     }
+
+    pub fn half(&self,dir: Direction) -> Bounds {
+        let mut bounds = self.clone();
+        bounds.width >>= 1; // half the width
+        if dir.is_max_x() {
+            bounds.x += bounds.width;
+        }
+        if dir.is_max_y() {
+            bounds.y += bounds.width;
+        }
+        if dir.is_max_z() {
+            bounds.z += bounds.width;
+        }
+        bounds
+    }
 }
 
 
@@ -41,16 +57,7 @@ impl From<IndexPath> for Bounds {
         let mut ip_iter = index_path;
         let mut bounds = Bounds::new();
         for dir in ip_iter {
-            bounds.width >>= 1; // half the width
-            if dir.is_max_x() {
-                bounds.x += bounds.width;
-            }
-            if dir.is_max_y() {
-                bounds.y += bounds.width;
-            }
-            if dir.is_max_z() {
-                bounds.z += bounds.width;
-            }
+            bounds = bounds.half(dir);
         }
         bounds
     }

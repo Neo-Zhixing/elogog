@@ -11,22 +11,25 @@ use amethyst::ecs::{Component, DenseVecStorage};
 use std::iter::FromIterator;
 
 pub struct Chunk {
+    pub size: f32,
     pub(super) arena: Arena,
     root_node: ArenaNodeIndice,
 }
 
 impl Chunk {
-    pub fn new() -> Chunk {
+    pub fn new(size: f32) -> Chunk {
         let mut arena = Arena::new();
         let root_node = arena.alloc(1).child(0);
         Chunk {
             arena,
             root_node,
+            size,
         }
     }
     pub fn root(&self) -> Node {
         Node {
             index_path: IndexPath::empty(),
+            bounds: Bounds::new(),
             voxel: Voxel::raw(0), // TODO calc average of root node
             parent_node: None,
             arena_node: Some(self.root_node),
@@ -152,6 +155,7 @@ impl<'a> Iterator for ChunkVoxelIterator<'a> {
                     }
                     return Some(Node {
                         index_path,
+                        bounds: index_path.into(), // TODO: Potentially optimizations?
                         voxel: node.data[dir.into()],
                         parent_node: Some(indice),
                         arena_node: None, // leaf node iterator guarantees that all nodes emitted are leaf nodes
