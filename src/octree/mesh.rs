@@ -1,6 +1,3 @@
-use super::chunk::Chunk;
-use super::node::Node;
-
 use amethyst::{
     controls::{FlyControlBundle, FlyControlTag},
     core::{
@@ -34,6 +31,7 @@ use amethyst::{
 };
 use crate::octree::bounds::Bounds;
 use crate::octree::direction::{Direction, DirectionMapper, Edge};
+use crate::octree::{Chunk, Voxel, VoxelData};
 
 trait Dimension {
     type FaceEdges1: Dimension;
@@ -422,7 +420,7 @@ const EDGE_TABLE: [[u16; 5]; 256] = [
 
 pub struct MeshGenerator<'a> {
     chunk: &'a Chunk,
-    dual_cells: Vec<DirectionMapper<Node>>,
+    pub dual_cells: Vec<DirectionMapper<Voxel<'a>>>,
 
     vertices: Vec<Position>,
     normal: Vec<Normal>,
@@ -430,10 +428,11 @@ pub struct MeshGenerator<'a> {
     indices: Vec<u16>,
 
     current: u16,
+    pub size: f32,
 }
 
 impl<'a> MeshGenerator<'a> {
-    pub fn new(chunk: &'a Chunk) -> Self {
+    pub fn new(chunk: &'a Chunk, size: f32) -> Self {
         Self {
             chunk,
             dual_cells: Vec::new(),
@@ -442,19 +441,21 @@ impl<'a> MeshGenerator<'a> {
             texcoords: Vec::new(),
             indices: Vec::new(),
             current: 0,
+            size,
         }
     }
     pub fn create_dualgrid(&mut self) {
-        let root = self.chunk.root();
+        let root = self.chunk.get_root();
         self.node_proc(&root);
     }
 
-    fn node_proc(&mut self, node: &Node) {
+    fn node_proc(&mut self, node: &Voxel<'a>) {
         if node.is_leaf() {
             return;
         }
 
-        let children = Direction::map(|dir| node.child(dir, self.chunk));
+        // Unwrap, because we've asserted that node is subdivided so it must have child
+        let children = Direction::map(|dir| node.get_child(dir));
 
         for child in children.iter() {
             self.node_proc(child);
@@ -470,7 +471,7 @@ impl<'a> MeshGenerator<'a> {
 
         self.vert_proc(children.data);
     }
-    fn face_proc_children<T: Dimension>(&mut self, children: &DirectionMapper<Node>) {
+    fn face_proc_children<T: Dimension>(&mut self, children: &DirectionMapper<Voxel<'a>>) {
         for (dir1, dir2) in T::FACE_PROC_DIR_GROUPS.iter() {
             self.face_proc::<T>([
                 &children[*dir1],
@@ -478,20 +479,21 @@ impl<'a> MeshGenerator<'a> {
             ]);
         }
     }
-    fn face_proc<T: Dimension>(&mut self, nodes: [&Node; 2]) {
+    fn face_proc<T: Dimension>(&mut self, nodes: [&Voxel<'a>; 2]) {
         if nodes.iter().all(|n| n.is_leaf()) {
             return;
         }
         let tuples = T::FACE_PROC_DIR_TUPLES;
+        // Can unwrap because we've asserted that all nodes are subdivided
         let children = DirectionMapper::new([
-            nodes[tuples[0].0].child(tuples[0].1, self.chunk),
-            nodes[tuples[1].0].child(tuples[1].1, self.chunk),
-            nodes[tuples[2].0].child(tuples[2].1, self.chunk),
-            nodes[tuples[3].0].child(tuples[3].1, self.chunk),
-            nodes[tuples[4].0].child(tuples[4].1, self.chunk),
-            nodes[tuples[5].0].child(tuples[5].1, self.chunk),
-            nodes[tuples[6].0].child(tuples[6].1, self.chunk),
-            nodes[tuples[7].0].child(tuples[7].1, self.chunk),
+            nodes[tuples[0].0].get_child(tuples[0].1),
+            nodes[tuples[1].0].get_child(tuples[1].1),
+            nodes[tuples[2].0].get_child(tuples[2].1),
+            nodes[tuples[3].0].get_child(tuples[3].1),
+            nodes[tuples[4].0].get_child(tuples[4].1),
+            nodes[tuples[5].0].get_child(tuples[5].1),
+            nodes[tuples[6].0].get_child(tuples[6].1),
+            nodes[tuples[7].0].get_child(tuples[7].1),
         ]);
 
         self.face_proc_children::<T>(&children);
@@ -499,7 +501,7 @@ impl<'a> MeshGenerator<'a> {
         self.edge_proc_children::<T::FaceEdges2>(&children);
         self.vert_proc(children.data);
     }
-    fn edge_proc_children<T>(&mut self, children: &DirectionMapper<Node>)
+    fn edge_proc_children<T>(&mut self, children: &DirectionMapper<Voxel<'a>>)
         where T: Dimension {
         let dir_groups = T::EDGE_PROC_DIR_GROUPS;
 
@@ -512,7 +514,7 @@ impl<'a> MeshGenerator<'a> {
             ]);
         }
     }
-    fn edge_proc<T>(&mut self, nodes: [&Node; 4])
+    fn edge_proc<T>(&mut self, nodes: [&Voxel<'a>; 4])
         where T: Dimension {
         if nodes.iter().all(|n| n.is_leaf()) {
             return;
@@ -521,26 +523,26 @@ impl<'a> MeshGenerator<'a> {
         let t = T::EDGE_PROC_DIR_TUPLES;
 
         let children = DirectionMapper::new([
-            nodes[t[0].0].child(t[0].1, self.chunk),
-            nodes[t[1].0].child(t[1].1, self.chunk),
-            nodes[t[2].0].child(t[2].1, self.chunk),
-            nodes[t[3].0].child(t[3].1, self.chunk),
-            nodes[t[4].0].child(t[4].1, self.chunk),
-            nodes[t[5].0].child(t[5].1, self.chunk),
-            nodes[t[6].0].child(t[6].1, self.chunk),
-            nodes[t[7].0].child(t[7].1, self.chunk),
+            nodes[t[0].0].get_child(t[0].1),
+            nodes[t[1].0].get_child(t[1].1),
+            nodes[t[2].0].get_child(t[2].1),
+            nodes[t[3].0].get_child(t[3].1),
+            nodes[t[4].0].get_child(t[4].1),
+            nodes[t[5].0].get_child(t[5].1),
+            nodes[t[6].0].get_child(t[6].1),
+            nodes[t[7].0].get_child(t[7].1),
         ]);
         self.edge_proc_children::<T>(&children);
         self.vert_proc(children.data);
     }
-    fn vert_proc(&mut self, mut nodes: [Node; 8]) {
+    fn vert_proc(&mut self, mut nodes: [Voxel<'a>; 8]) {
         loop {
             let mut has_subdivided = false;
             for (index, node) in nodes.iter_mut().enumerate() {
                 if node.is_subdivided() {
                     has_subdivided = true;
                     let dir = Direction::from(index as u8);
-                    let opposite_dir_node = node.child(dir.opposite(), self.chunk);
+                    let opposite_dir_node = node.get_child(dir.opposite());
                     *node = opposite_dir_node;
                 }
             }
@@ -552,10 +554,10 @@ impl<'a> MeshGenerator<'a> {
         self.add_dualcell(DirectionMapper::new(nodes));
         // TODO add dual cell
     }
-    fn add_dualcell(&mut self, nodes: DirectionMapper<Node>) {
+    fn add_dualcell(&mut self, nodes: DirectionMapper<Voxel<'a>>) {
         let mut edge_index: u8 = 0;
         for node in nodes.iter().rev() {
-            if node.voxel.is_empty() {
+            if *node.get_value() == VoxelData::EMPTY {
                 edge_index |= 1;
             }
             edge_index <<= 1;
@@ -578,12 +580,12 @@ impl<'a> MeshGenerator<'a> {
         self.dual_cells.push(nodes);
     }
 
-    fn add_triangle(&mut self, edges: [Edge; 3], nodes: &DirectionMapper<Node>) {
+    fn add_triangle(&mut self, edges: [Edge; 3], nodes: &DirectionMapper<Voxel>) {
         for edge in edges.iter() {
             let (v1, v2) = edge.vertices();
-            let node1 = nodes[v1].bounds.center();
-            let node2 = nodes[v2].bounds.center();
-            let pos: Vector3<f32> = (node1.coords + node2.coords) * (self.chunk.size * 0.5);
+            let node1 = nodes[v1].get_bounds().center();
+            let node2 = nodes[v2].get_bounds().center();
+            let pos: Vector3<f32> = (node1.coords + node2.coords) * (self.size * 0.5);
             self.vertices.push(pos.into());
             self.texcoords.push(TexCoord([0.0, 0.0]));
             self.normal.push(Normal([0.0, 0.0, 0.0]));
@@ -591,6 +593,10 @@ impl<'a> MeshGenerator<'a> {
             self.indices.push(self.current);
             self.current += 1;
         }
+        // Making faces visible from both sides
+        self.indices.push(self.current - 1);
+        self.indices.push(self.current - 2);
+        self.indices.push(self.current - 3);
     }
 
     pub fn into_mesh_builder(self) -> MeshBuilder<'static> {
@@ -605,9 +611,9 @@ impl<'a> MeshGenerator<'a> {
     pub fn gen_wireframe(&self) -> DebugLinesComponent {
         let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
         for node in self.chunk.iter_leaf() {
-            let bounds: Bounds = node.bounds;
-            let position = bounds.get_position() * self.chunk.size;
-            let width = bounds.get_width() * self.chunk.size;
+            let bounds: &Bounds = node.get_bounds();
+            let position = bounds.get_position() * self.size;
+            let width = bounds.get_width() * self.size;
 
             for i in 0..3 {
                 let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
@@ -621,11 +627,11 @@ impl<'a> MeshGenerator<'a> {
         }
 
         for cell in &self.dual_cells {
-            let origin = cell[Direction::RearRightTop].bounds.center() * self.chunk.size;
+            let origin = cell[Direction::RearRightTop].get_bounds().center() * self.size;
             for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
                 debug_lines_component.add_line(
                     origin,
-                    cell[*dir].bounds.center() * self.chunk.size,
+                    cell[*dir].get_bounds().center() * self.size,
                     Srgba::new(1.0, 0.2, 1.0, 1.8),
                 );
             }

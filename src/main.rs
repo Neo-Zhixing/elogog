@@ -1,10 +1,8 @@
-#![feature(leading_trailing_ones)]
 #![feature(alloc_layout_extra)]
 #![feature(const_generics)]
 
 mod util;
 mod octree;
-mod worldgen;
 
 use amethyst::{
     controls::{FlyControlBundle, FlyControlTag},
@@ -22,7 +20,7 @@ use amethyst::{
         camera::{Camera, Projection},
         light,
         debug_drawing::{DebugLinesComponent},
-        palette::Srgb,
+        palette::{Srgb, Srgba},
         palette::LinSrgba,
         plugins::{RenderDebugLines, RenderSkybox, RenderToWindow, RenderFlat3D, RenderPbr3D, RenderShaded3D},
         types::DefaultBackend,
@@ -43,10 +41,7 @@ use amethyst::{
 };
 use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
-use crate::octree::mesh::MeshGenerator;
-use crate::octree::chunk::Chunk;
-use crate::octree::index_path::IndexPath;
-use crate::octree::voxel::Voxel;
+use crate::octree::VoxelData;
 use crate::octree::direction::Direction;
 
 struct GameState;
@@ -74,12 +69,60 @@ impl SimpleState for GameState {
             .with(local_transform)
             .build();
 
-        let mut chunk = Chunk::new(8.0);
-        chunk.set(IndexPath::new(Direction::RearRightTop), Voxel::raw(12));
+        let generator: octree::world_builder::WorldBuilder<octree::VoxelData, _> = octree::world_builder::WorldBuilder::new(
+            |chunk: &octree::world::ChunkCoordinates, bounds: &octree::bounds::Bounds| {
+                let target_bounds = octree::bounds::Bounds::from_discrete_grid((32, 32, 32), 64, 128);
 
-        let mut mesh_generator = MeshGenerator::new(&chunk);
+                let intersects = target_bounds.intersects(bounds);
+                println!("{:?} {:?} {:?}", target_bounds, intersects, bounds);
+                match target_bounds.intersects(bounds) {
+                    octree::bounds::BoundsSpacialRelationship::Disjoint => octree::world_builder::Isosurface::Uniform(VoxelData::EMPTY),
+                    octree::bounds::BoundsSpacialRelationship::Contain => octree::world_builder::Isosurface::Uniform(1.into()),
+                    octree::bounds::BoundsSpacialRelationship::Intersect => octree::world_builder::Isosurface::Surface,
+                }
+            }
+        );
+        let chunk = generator.build(& octree::world::ChunkCoordinates::new());
+
+        let mut mesh_generator = crate::octree::mesh::MeshGenerator::new(&chunk, 1.0);
         mesh_generator.create_dualgrid();
-        let wireframe = mesh_generator.gen_wireframe();
+        let mut wireframe = DebugLinesComponent::with_capacity(100);
+        for node in chunk.iter_leaf() {
+            let bounds = node.get_bounds();
+            let position = bounds.get_position();
+            let width = bounds.get_width();
+
+            wireframe.add_sphere(position, 0.01,
+                                 8,
+                                 8,
+                                 if node.get_value().is_empty() {
+                                     Srgba::new(1.0, 1.0, 1.0, 1.0)
+                                 } else {
+
+                                     Srgba::new(1.0, 0.5, 0.23, 1.0)
+                                 }) ;
+
+            for i in 0..3 {
+                let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
+                dir[i] = width;
+                wireframe.add_direction(
+                    position,
+                    dir.into(),
+                    Srgba::new(1.0, 0.5, 0.23, 1.0),
+                );
+            }
+        }
+        for cell in &mesh_generator.dual_cells {
+            let origin = cell[Direction::RearRightTop].get_bounds().center() * mesh_generator.size;
+            for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
+                wireframe.add_line(
+                    origin,
+                    cell[*dir].get_bounds().center() * mesh_generator.size,
+                    Srgba::new(1.0, 0.2, 1.0, 1.8),
+                );
+            }
+        }
+
 
         // Getting us a ball
         let mesh = data.world
@@ -118,7 +161,6 @@ impl SimpleState for GameState {
             .with(material)
             .with(wireframe)
             .build();
-
         // Creating light source
         let light: light::Light = light::DirectionalLight {
             color: Srgb::new(0.8, 0.0, 0.0),

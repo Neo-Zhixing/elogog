@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 amethyst = "0.15.0"
 rand = "0.7.3"
+octree = { path = "../octree" }
 
 [features]
 default = ["metal"]
