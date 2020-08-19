@@ -86,42 +86,7 @@ impl SimpleState for GameState {
 
         let mut mesh_generator = crate::octree::mesh::MeshGenerator::new(&chunk, 1.0);
         mesh_generator.create_dualgrid();
-        let mut wireframe = DebugLinesComponent::with_capacity(100);
-        for node in chunk.iter_leaf() {
-            let bounds = node.get_bounds();
-            let position = bounds.get_position();
-            let width = bounds.get_width();
-
-            wireframe.add_sphere(position, 0.01,
-                                 8,
-                                 8,
-                                 if node.get_value().is_empty() {
-                                     Srgba::new(1.0, 1.0, 1.0, 1.0)
-                                 } else {
-
-                                     Srgba::new(1.0, 0.5, 0.23, 1.0)
-                                 }) ;
-
-            for i in 0..3 {
-                let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
-                dir[i] = width;
-                wireframe.add_direction(
-                    position,
-                    dir.into(),
-                    Srgba::new(1.0, 0.5, 0.23, 1.0),
-                );
-            }
-        }
-        for cell in &mesh_generator.dual_cells {
-            let origin = cell[Direction::RearRightTop].get_bounds().center() * mesh_generator.size;
-            for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
-                wireframe.add_line(
-                    origin,
-                    cell[*dir].get_bounds().center() * mesh_generator.size,
-                    Srgba::new(1.0, 0.2, 1.0, 1.8),
-                );
-            }
-        }
+        let wireframe = mesh_generator.gen_wireframe();
 
 
         // Getting us a ball

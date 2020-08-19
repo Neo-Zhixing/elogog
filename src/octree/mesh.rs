@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use amethyst::{
     controls::{FlyControlBundle, FlyControlTag},
     core::{
@@ -66,7 +68,7 @@ impl Dimension for X {
     const FACE_PROC_DIR_GROUPS: [(Direction, Direction); 4] = [
         (Direction::RearLeftBottom, Direction::FrontLeftBottom),
         (Direction::RearRightBottom, Direction::FrontRightBottom),
-        (Direction::RearLeftTop, Direction::FrontRightTop),
+        (Direction::RearLeftTop, Direction::FrontLeftTop),
         (Direction::RearRightTop, Direction::FrontRightTop),
     ];
     const FACE_PROC_DIR_TUPLES: [(usize, Direction); 8] = [
@@ -429,6 +431,8 @@ pub struct MeshGenerator<'a> {
 
     current: u16,
     pub size: f32,
+
+    pub count: usize,
 }
 
 impl<'a> MeshGenerator<'a> {
@@ -442,6 +446,7 @@ impl<'a> MeshGenerator<'a> {
             indices: Vec::new(),
             current: 0,
             size,
+            count: 0,
         }
     }
     pub fn create_dualgrid(&mut self) {
@@ -557,10 +562,10 @@ impl<'a> MeshGenerator<'a> {
     fn add_dualcell(&mut self, nodes: DirectionMapper<Voxel<'a>>) {
         let mut edge_index: u8 = 0;
         for node in nodes.iter().rev() {
+            edge_index <<= 1;
             if *node.get_value() == VoxelData::EMPTY {
                 edge_index |= 1;
             }
-            edge_index <<= 1;
         }
 
         let edge_bin = EDGE_TABLE[edge_index as usize];
@@ -589,14 +594,14 @@ impl<'a> MeshGenerator<'a> {
             self.vertices.push(pos.into());
             self.texcoords.push(TexCoord([0.0, 0.0]));
             self.normal.push(Normal([0.0, 0.0, 0.0]));
-
-            self.indices.push(self.current);
             self.current += 1;
         }
         // Making faces visible from both sides
         self.indices.push(self.current - 1);
         self.indices.push(self.current - 2);
         self.indices.push(self.current - 3);
+        self.count += 1;
+        println!("added a triangle {}", self.count);
     }
 
     pub fn into_mesh_builder(self) -> MeshBuilder<'static> {
@@ -609,27 +614,36 @@ impl<'a> MeshGenerator<'a> {
 
 
     pub fn gen_wireframe(&self) -> DebugLinesComponent {
-        let mut debug_lines_component = DebugLinesComponent::with_capacity(100);
+        let mut wireframe = DebugLinesComponent::with_capacity(100);
         for node in self.chunk.iter_leaf() {
-            let bounds: &Bounds = node.get_bounds();
-            let position = bounds.get_position() * self.size;
-            let width = bounds.get_width() * self.size;
+            let bounds = node.get_bounds();
+            let position = bounds.get_position();
+            let width = bounds.get_width();
+
+            wireframe.add_sphere(bounds.center(), 0.01,
+                                 8,
+                                 8,
+                                 if node.get_value().is_empty() {
+                                     Srgba::new(1.0, 1.0, 1.0, 1.0)
+                                 } else {
+
+                                     Srgba::new(1.0, 0.5, 0.23, 1.0)
+                                 }) ;
 
             for i in 0..3 {
                 let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
                 dir[i] = width;
-                debug_lines_component.add_direction(
+                wireframe.add_direction(
                     position,
                     dir.into(),
                     Srgba::new(1.0, 0.5, 0.23, 1.0),
                 );
             }
         }
-
         for cell in &self.dual_cells {
             let origin = cell[Direction::RearRightTop].get_bounds().center() * self.size;
             for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
-                debug_lines_component.add_line(
+                wireframe.add_line(
                     origin,
                     cell[*dir].get_bounds().center() * self.size,
                     Srgba::new(1.0, 0.2, 1.0, 1.8),
@@ -637,6 +651,32 @@ impl<'a> MeshGenerator<'a> {
             }
         }
 
-        debug_lines_component
+        for mut indices in &self.indices.iter().chunks(3) {
+            let x = *indices.next().unwrap() as usize;
+            let y = *indices.next().unwrap() as usize;
+            let z = *indices.next().unwrap() as usize;
+            debug_assert!(indices.next().is_none());
+            let x_vert: [f32; 3] = self.vertices[x].0;
+            let y_vert: [f32; 3] = self.vertices[y].0;
+            let z_vert: [f32; 3] = self.vertices[z].0;
+
+            wireframe.add_line(
+                x_vert.into(),
+                y_vert.into(),
+                Srgba::new(1.0, 1.0, 1.0, 1.8),
+            );
+            wireframe.add_line(
+                y_vert.into(),
+                z_vert.into(),
+                Srgba::new(1.0, 1.0, 1.0, 1.8),
+            );
+            wireframe.add_line(
+                z_vert.into(),
+                x_vert.into(),
+                Srgba::new(1.0, 1.0, 1.0, 1.8),
+            );
+        }
+
+        wireframe
     }
 }
