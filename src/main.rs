@@ -43,6 +43,7 @@ use std::time::Duration;
 use crate::util::gridline::get_gridline_component;
 use crate::octree::VoxelData;
 use crate::octree::direction::Direction;
+use crate::octree::mesher::Mesher;
 
 struct GameState;
 
@@ -71,7 +72,7 @@ impl SimpleState for GameState {
 
         let generator: octree::world_builder::WorldBuilder<octree::VoxelData, _> = octree::world_builder::WorldBuilder::new(
             |chunk: &octree::world::ChunkCoordinates, bounds: &octree::bounds::Bounds| {
-                let target_bounds = octree::bounds::Bounds::from_discrete_grid((32, 32, 32), 64, 128);
+                let target_bounds = octree::bounds::Bounds::from_discrete_grid((32, 32, 32), 48, 128);
 
                 let intersects = target_bounds.intersects(bounds);
                 println!("{:?} {:?} {:?}", target_bounds, intersects, bounds);
@@ -84,8 +85,7 @@ impl SimpleState for GameState {
         );
         let chunk = generator.build(& octree::world::ChunkCoordinates::new());
 
-        let mut mesh_generator = crate::octree::mesh::MeshGenerator::new(&chunk, 1.0);
-        mesh_generator.create_dualgrid();
+        let mut mesh_generator = crate::octree::mesher::dualmc::MeshGenerator::new(&chunk);
         let wireframe = mesh_generator.gen_wireframe();
 
 

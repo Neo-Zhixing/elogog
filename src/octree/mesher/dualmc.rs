@@ -34,6 +34,7 @@ use amethyst::{
 use crate::octree::bounds::Bounds;
 use crate::octree::direction::{Direction, DirectionMapper, Edge};
 use crate::octree::{Chunk, Voxel, VoxelData};
+use crate::octree::mesher::Mesher;
 
 trait Dimension {
     type FaceEdges1: Dimension;
@@ -436,24 +437,6 @@ pub struct MeshGenerator<'a> {
 }
 
 impl<'a> MeshGenerator<'a> {
-    pub fn new(chunk: &'a Chunk, size: f32) -> Self {
-        Self {
-            chunk,
-            dual_cells: Vec::new(),
-            vertices: Vec::new(),
-            normal: Vec::new(),
-            texcoords: Vec::new(),
-            indices: Vec::new(),
-            current: 0,
-            size,
-            count: 0,
-        }
-    }
-    pub fn create_dualgrid(&mut self) {
-        let root = self.chunk.get_root();
-        self.node_proc(&root);
-    }
-
     fn node_proc(&mut self, node: &Voxel<'a>) {
         if node.is_leaf() {
             return;
@@ -603,17 +586,27 @@ impl<'a> MeshGenerator<'a> {
         self.count += 1;
         println!("added a triangle {}", self.count);
     }
+}
 
-    pub fn into_mesh_builder(self) -> MeshBuilder<'static> {
-        MeshBuilder::new()
-            .with_vertices(self.vertices)
-            .with_vertices(self.normal)
-            .with_vertices(self.texcoords)
-            .with_indices(Indices::U16(self.indices.into()))
+impl<'a> Mesher<'a> for MeshGenerator<'a> {
+    fn new(chunk: &'a Chunk) -> Self {
+        let mut mesher = Self {
+            chunk,
+            dual_cells: Vec::new(),
+            vertices: Vec::new(),
+            normal: Vec::new(),
+            texcoords: Vec::new(),
+            indices: Vec::new(),
+            current: 0,
+            size: 1.0,
+            count: 0,
+        };
+
+        let root = mesher.chunk.get_root();
+        mesher.node_proc(&root);
+        mesher
     }
-
-
-    pub fn gen_wireframe(&self) -> DebugLinesComponent {
+    fn gen_wireframe(&self) -> DebugLinesComponent {
         let mut wireframe = DebugLinesComponent::with_capacity(100);
         for node in self.chunk.iter_leaf() {
             let bounds = node.get_bounds();
@@ -678,5 +671,13 @@ impl<'a> MeshGenerator<'a> {
         }
 
         wireframe
+    }
+
+    fn into_mesh_builder(self) -> MeshBuilder<'static> {
+        MeshBuilder::new()
+            .with_vertices(self.vertices)
+            .with_vertices(self.normal)
+            .with_vertices(self.texcoords)
+            .with_indices(Indices::U16(self.indices.into()))
     }
 }

@@ -1,5 +1,5 @@
 extern crate octree;
-pub mod mesh;
+pub mod mesher;
 #[derive(Eq, PartialEq, Copy, Clone, Default)]
 pub struct VoxelData(u16);
 impl VoxelData {
