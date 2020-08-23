@@ -10,7 +10,7 @@ use amethyst::{
     input::{is_close_requested, is_key_down, InputBundle, StringBindings},
     prelude::*,
     renderer::{
-        camera::{Camera, Projection},
+        camera::{Camera},
         debug_drawing::{DebugLines, DebugLinesComponent, DebugLinesParams},
         palette::Srgba,
         plugins::{RenderDebugLines, RenderSkybox, RenderToWindow},

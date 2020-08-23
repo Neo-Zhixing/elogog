@@ -12,7 +12,7 @@ use amethyst::{
     input::{is_close_requested, is_key_down, InputBundle, StringBindings},
     prelude::*,
     renderer::{
-        camera::{Camera, Projection},
+        camera::{Camera},
         debug_drawing::{DebugLines, DebugLinesComponent, DebugLinesParams},
         palette::Srgba,
         plugins::{RenderDebugLines, RenderSkybox, RenderToWindow},
@@ -573,7 +573,7 @@ impl<'a> MeshGenerator<'a> {
             let (v1, v2) = edge.vertices();
             let node1 = nodes[v1].get_bounds().center();
             let node2 = nodes[v2].get_bounds().center();
-            let pos: Vector3<f32> = (node1.coords + node2.coords) * (self.size * 0.5);
+            let pos = (node1 + node2) * (self.size * 0.5);
             self.vertices.push(pos.into());
             self.texcoords.push(TexCoord([0.0, 0.0]));
             self.normal.push(Normal([0.0, 0.0, 0.0]));
@@ -589,7 +589,7 @@ impl<'a> MeshGenerator<'a> {
 }
 
 impl<'a> Mesher<'a> for MeshGenerator<'a> {
-    fn new(chunk: &'a Chunk) -> Self {
+    fn new(chunk: &'a Chunk, size: f32) -> Self {
         let mut mesher = Self {
             chunk,
             dual_cells: Vec::new(),
@@ -598,7 +598,7 @@ impl<'a> Mesher<'a> for MeshGenerator<'a> {
             texcoords: Vec::new(),
             indices: Vec::new(),
             current: 0,
-            size: 1.0,
+            size,
             count: 0,
         };
 
@@ -613,7 +613,8 @@ impl<'a> Mesher<'a> for MeshGenerator<'a> {
             let position = bounds.get_position();
             let width = bounds.get_width();
 
-            wireframe.add_sphere(bounds.center(), 0.01,
+            let center: [f32; 3] = (bounds.center() * self.size).into();
+            wireframe.add_sphere(center.into(), 0.01,
                                  8,
                                  8,
                                  if node.get_value().is_empty() {
@@ -625,20 +626,23 @@ impl<'a> Mesher<'a> for MeshGenerator<'a> {
 
             for i in 0..3 {
                 let mut dir: [f32; 3] = [0.0, 0.0, 0.0];
-                dir[i] = width;
+                dir[i] = width * self.size;
+                let position: [f32; 3] = (position * self.size).into();
+
                 wireframe.add_direction(
-                    position,
+                    position.into(),
                     dir.into(),
                     Srgba::new(1.0, 0.5, 0.23, 1.0),
                 );
             }
         }
         for cell in &self.dual_cells {
-            let origin = cell[Direction::RearRightTop].get_bounds().center() * self.size;
+            let origin: [f32; 3] = (cell[Direction::RearRightTop].get_bounds().center() * self.size).into();
             for dir in &[Direction::FrontRightTop, Direction::RearRightBottom, Direction::RearLeftTop] {
+                let end: [f32; 3] = (cell[*dir].get_bounds().center() * self.size).into();
                 wireframe.add_line(
-                    origin,
-                    cell[*dir].get_bounds().center() * self.size,
+                    origin.into(),
+                    end.into(),
                     Srgba::new(1.0, 0.2, 1.0, 1.8),
                 );
             }

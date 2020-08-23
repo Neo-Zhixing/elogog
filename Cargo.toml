@@ -5,7 +5,7 @@ authors = []
 edition = "2018"
 
 [dependencies]
-amethyst = "0.15.0"
+amethyst = "0.15.1"
 rand = "0.7.3"
 octree = { path = "../octree" }
 itertools = "0.9.0"

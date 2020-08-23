@@ -17,7 +17,7 @@ use amethyst::{
     input::{is_close_requested, is_key_down, InputBundle, StringBindings},
     prelude::*,
     renderer::{
-        camera::{Camera, Projection},
+        camera::{Camera},
         light,
         debug_drawing::{DebugLinesComponent},
         palette::{Srgb, Srgba},
@@ -61,12 +61,7 @@ impl SimpleState for GameState {
         data.world
             .create_entity()
             .with(FlyControlTag)
-            .with(Camera::from(Projection::perspective(
-                1.33333,
-                std::f32::consts::FRAC_PI_2,
-                0.1,
-                1000.0,
-            )))
+            .with(Camera::perspective(1.33333, 1.0, 0.01))
             .with(local_transform)
             .build();
 
@@ -85,7 +80,7 @@ impl SimpleState for GameState {
         );
         let chunk = generator.build(& octree::world::ChunkCoordinates::new());
 
-        let mut mesh_generator = crate::octree::mesher::dualmc::MeshGenerator::new(&chunk);
+        let mut mesh_generator = crate::octree::mesher::dualmc::MeshGenerator::new(&chunk, 1.0);
         let wireframe = mesh_generator.gen_wireframe();
 
 
